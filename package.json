@@ -1,0 +1,16 @@
+{
+  "name": "semeion_client",
+  "version": "1.0.0",
+  "description": "Client for communication on the semeion network",
+  "main": "sem_client.js",
+  "scripts": {
+    "start": "node sem_client.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "mqtt": "^2.18.8",
+    "nodemon": "^1.18.4",
+    "ws": "^6.1.0"
+  }
+}
