@@ -1,15 +1,21 @@
 // sem_client.js
 const mqtt = require('mqtt')
-const client = mqtt.connect('mqtt://localhost')
 var stdin = process.openStdin();
+var configs = require('./configs.js');
 
-var myInfo = {'name': 'SEMCLIENT_01', 'clientId' : ''};
+checkForCommandlineArguments();
+
+const client = mqtt.connect('mqtt://' + configs.brokerIp);
+
+var myInfo = {'name': 'semclient' + configs.semeionId, 'clientId' : ''};
 const states = ['IDLE', 'HAPPY', 'HAPPY_OTHER', 'SCARED', 'SCARED_OTHER', 'CURIOUS', 'CURIOUS_OTHER']; 
 var state = 'IDLE';
 
+
 client.on('error', (err) => {
-  console.log(err);
+  console.log('Error: ' + err);
 });
+
 client.on('connect', () => {
   console.log('Hello world, I am ' + myInfo.name);
 
@@ -31,14 +37,9 @@ client.on('message', (topic, message) => {
   }
 });
 
+// Commandline string interface for testing
 stdin.addListener('data', function(d) {
-  // note:  d is an object, and when converted to a string it will
-  // end with a linefeed.  so we (rather crudely) account for that
-  // with toString() and then trim()
-  console.log('you entered: [' + d.toString().trim() + ']');
-
   var string = d.toString().trim();
-
   if(string == 'happy') {
     state = 'HAPPY';
     sendStateUpdate();
@@ -95,6 +96,18 @@ function handleAppExit (options, err) {
       process.exit()
     }
   }, 500);
+}
+
+
+// Check for command line arguments
+function checkForCommandlineArguments() {
+  if(process.argv.indexOf('-ip') != -1) {
+    configs.brokerIp = process.argv[process.argv.indexOf('-ip') + 1]; //grab the next item
+  }
+
+  if(process.argv.indexOf('-id') != -1) {
+    configs.semeionId = process.argv[process.argv.indexOf('-id') + 1]; //grab the next item
+  }
 }
 
 /**
