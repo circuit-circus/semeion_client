@@ -8,9 +8,9 @@ MQTT is used as the communication protocol.
 ## Install instructions
 Clone project and install node modules.
 
-Create a `config.js` file. It should include the following:
+Create a `config.js` file. It should look like the following:
 
-    var configs = {
+    module.exports = {
       brokerIp : '',
       semeionId : ''
     }
