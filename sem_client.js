@@ -35,6 +35,8 @@ client.on('message', (topic, message) => {
     case 'sem_client/other_state':
       return handleOtherStateRequest(message)
   }
+
+  console.log('No handler for topic %s', topic);
 });
 
 // Commandline string interface for testing
@@ -74,6 +76,38 @@ function handleOtherStateRequest (message) {
   }, 5000);
 }
 
+// Check for command line arguments
+function checkForCommandlineArguments() {
+  if(process.argv.indexOf('-ip') != -1) {
+    configs.brokerIp = process.argv[process.argv.indexOf('-ip') + 1]; //grab the next item
+  }
+
+  if(process.argv.indexOf('-id') != -1) {
+    configs.semeionId = process.argv[process.argv.indexOf('-id') + 1]; //grab the next item
+  }
+}
+
+/**
+ * Handle the different ways an application can shutdown
+ */
+
+process.once('SIGUSR2', handleAppExit.bind(null, {
+  kill: true,
+  cleanup: true
+}));
+
+process.on('exit', handleAppExit.bind(null, {
+  cleanup: true
+}));
+process.on('SIGINT', handleAppExit.bind(null, {
+  exit: true,
+  cleanup: true
+}));
+process.on('uncaughtException', handleAppExit.bind(null, {
+  exit: true,
+  cleanup: true
+}));
+
 /**
  * Want to notify controller that garage is disconnected before shutting down
  */
@@ -97,38 +131,3 @@ function handleAppExit (options, err) {
     }
   }, 500);
 }
-
-
-// Check for command line arguments
-function checkForCommandlineArguments() {
-  if(process.argv.indexOf('-ip') != -1) {
-    configs.brokerIp = process.argv[process.argv.indexOf('-ip') + 1]; //grab the next item
-  }
-
-  if(process.argv.indexOf('-id') != -1) {
-    configs.semeionId = process.argv[process.argv.indexOf('-id') + 1]; //grab the next item
-  }
-}
-
-/**
- * Handle the different ways an application can shutdown
- */
-
-process.once('SIGUSR2', handleAppExit.bind(null, {
-  kill: true,
-  cleanup: true
-}));
-
-
-process.on('exit', handleAppExit.bind(null, {
-  cleanup: true
-}));
-process.on('SIGINT', handleAppExit.bind(null, {
-  exit: true,
-  cleanup: true
-}));
-process.on('uncaughtException', handleAppExit.bind(null, {
-  exit: true,
-  cleanup: true
-}));
-
