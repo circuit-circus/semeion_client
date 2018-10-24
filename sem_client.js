@@ -163,10 +163,9 @@ function i2cConnect() {
     var spawn = require('child_process').spawn;
     var process = spawn('python3', [i2cPyPath]);
 
-    console.log('PYTHON');
     process.stdout.on('data', function (data) {
       process.kill();
-      resolve('Print was successful!');
+      resolve('Python is sending this data: ' + data);
     });
 
     process.stderr.on('data', (data) => {
