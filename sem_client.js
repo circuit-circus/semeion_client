@@ -67,6 +67,13 @@ function sendDataUpdate() {
   client.publish('sem_client/data', dataToSend);
 
   console.log('Is connected? ' + client.connected);
+
+  i2cConnect().then(function(printMessage) {
+    console.log(printMessage);
+  })
+  .catch(function(error) {
+    console.log(error);
+  });
 }
 
 function sendStateUpdate () {
@@ -145,4 +152,34 @@ function handleAppExit (options, err) {
       process.exit()
     }
   }, 500);
+}
+
+// PYTHON CONNECTION
+let i2cPyPath = __dirname + '/semeion.py';
+// Connects to i2c
+function i2cConnect() {
+  console.log('Connecting to Python');
+  return new Promise(function(resolve, reject) {
+    var spawn = require('child_process').spawn;
+    var process = spawn('python3', [i2cPyPath]);
+
+    console.log('PYTHON');
+    process.stdout.on('data', function (data) {
+      process.kill();
+      resolve('Print was successful!');
+    });
+
+    process.stderr.on('data', (data) => {
+      process.kill();
+      reject(Error('Python gave off an error: ' + data));
+    });
+
+    process.on('close', (code) => {
+      reject(Error('Python was closed with this code: ' + code));
+    });
+
+    process.on('error', (err) => {
+      reject(Error('An error occured with Python: ' + err));
+    });
+  });
 }
