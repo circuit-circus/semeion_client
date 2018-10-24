@@ -27,6 +27,8 @@ client.on('connect', () => {
 
   // Inform controllers that sem_client is connected and send this Id
   client.publish('sem_client/connect', JSON.stringify(myInfo));
+
+  setInterval(sendDataUpdate, 3000);
 });
 
 client.on('message', (topic, message) => {
@@ -54,9 +56,17 @@ stdin.addListener('data', function(d) {
   }
 });
 
+function sendDataUpdate() {
+  var randomData = Math.floor((Math.random() * 10) + 1);
+  console.log('Sending data update: ' + randomData);
+
+  var dataToSend = JSON.stringify({clientInfo: myInfo, clientData: randomData})
+  client.publish('sem_client/data', dataToSend);
+}
+
 function sendStateUpdate () {
   console.log('My state is now %s', state);
-  var dataToSend = JSON.stringify({clientInfo: myInfo, clientState: state})
+  var dataToSend = JSON.stringify({clientInfo: myInfo, clientState: state});
   client.publish('sem_client/state', dataToSend);
 }
 
