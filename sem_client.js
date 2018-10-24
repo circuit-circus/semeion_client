@@ -68,8 +68,8 @@ function sendDataUpdate() {
 
   console.log('Is connected? ' + client.connected);
 
-  i2cConnect().then(function(printMessage) {
-    console.log(printMessage);
+  i2cConnect().then(function(pythonMessage) {
+    console.log(pythonMessage);
   })
   .catch(function(error) {
     console.log(error);

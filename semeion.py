@@ -15,6 +15,6 @@ def getData(address, offset, size):
         return ' Oops! I2C Error!'
 
 # Give the I2C device time to settle
-sleep(2)
+sleep(0.1)
 print(getData(i2caddress, 99, 5))
 sys.stdout.flush()
