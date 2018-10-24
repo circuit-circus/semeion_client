@@ -11,6 +11,7 @@ var myInfo = {'name': 'semclient' + configs.semeionId, 'clientId' : ''};
 const states = ['IDLE', 'HAPPY', 'HAPPY_OTHER', 'SCARED', 'SCARED_OTHER', 'CURIOUS', 'CURIOUS_OTHER']; 
 var state = 'IDLE';
 
+var sendDataInterval;
 
 client.on('error', (err) => {
   console.log('Error: ' + err);
@@ -28,7 +29,9 @@ client.on('connect', () => {
   // Inform controllers that sem_client is connected and send this Id
   client.publish('sem_client/connect', JSON.stringify(myInfo));
 
-  setInterval(sendDataUpdate, 3000);
+  if(!sendDataInterval) {
+    sendDataInterval = setInterval(sendDataUpdate, 3000);
+  }
 });
 
 client.on('message', (topic, message) => {
@@ -62,6 +65,8 @@ function sendDataUpdate() {
 
   var dataToSend = JSON.stringify({clientInfo: myInfo, clientData: randomData})
   client.publish('sem_client/data', dataToSend);
+
+  console.log('Is connected? ' + client.connected);
 }
 
 function sendStateUpdate () {
