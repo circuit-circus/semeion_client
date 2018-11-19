@@ -60,15 +60,11 @@ stdin.addListener('data', function(d) {
 });
 
 function sendDataUpdate() {
-  var randomData = Math.floor((Math.random() * 10) + 1);
-  console.log('Sending data update: ' + randomData);
-
-  var dataToSend = JSON.stringify({clientInfo: myInfo, clientData: randomData})
-  client.publish('sem_client/data', dataToSend);
-
   console.log('Is connected? ' + client.connected);
 
   i2cConnect().then(function(pythonMessage) {
+    var dataToSend = JSON.stringify({clientInfo: myInfo, clientData: pythonMessage})
+    client.publish('sem_client/data', pythonMessage);
     console.log(pythonMessage);
   })
   .catch(function(error) {
