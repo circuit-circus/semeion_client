@@ -62,10 +62,15 @@ stdin.addListener('data', function(d) {
 function sendDataUpdate() {
   console.log('Is connected? ' + client.connected);
 
-  i2cConnect().then(function(pythonMessage) {
-    var dataToSend = JSON.stringify({clientInfo: myInfo, clientData: pythonMessage})
-    client.publish('sem_client/data', pythonMessage);
-    console.log(pythonMessage);
+  i2cConnect().then(function(msg) {
+    // Convert the received buffer to a string
+    msg = msg.toString('utf8');
+    // Remove null bytes, which are used to terminate I2C communication
+    msg = msg.substring(0, /\0/.exec(msg).index);
+    // Split the string into an array, and convert to Numbers
+    msg = msg.split(",").map(Number);
+    var dataToSend = JSON.stringify({clientInfo: myInfo, clientData: msg})
+    client.publish('sem_client/data', dataToSend);
   })
   .catch(function(error) {
     console.log(error);
@@ -161,7 +166,7 @@ function i2cConnect() {
 
     process.stdout.on('data', function (data) {
       process.kill();
-      resolve('Python is sending this data: ' + data);
+      resolve(data);
     });
 
     process.stderr.on('data', (data) => {

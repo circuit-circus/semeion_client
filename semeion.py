@@ -15,7 +15,7 @@ def getData(address, offset, size):
             data = ''.join(data)
             return data
     except:
-        return("Unexpected I2C error:", sys.exc_info()[0])
+        return("Unexpected I2C error:" + str(sys.exc_info()[0]))
 
 # Give the I2C device time to settle
 sleep(0.1)
