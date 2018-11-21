@@ -83,8 +83,11 @@ function sendDataUpdate() {
     msg = msg.substring(0, /\0/.exec(msg).index);
     // Split the string into an array, and convert to Numbers
     msg = msg.split(",").map(Number);
+    console.log("Parsed Python data: " + msg);
+    console.log("Sending data to server...");
     var dataToSend = JSON.stringify({clientInfo: myInfo, clientData: msg})
     client.publish('sem_client/data', dataToSend);
+    console.log("Python data sent to server.");
   })
   .catch(function(error) {
     console.log(error);
@@ -180,6 +183,7 @@ function i2cConnect() {
 
     process.stdout.on('data', function (data) {
       process.kill();
+      console.log("Successfully connected to Python. Parsing data...");
       resolve(data);
     });
 
