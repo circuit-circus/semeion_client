@@ -19,7 +19,7 @@ def getData(address, offset, size):
 
 # Give the I2C device time to settle
 sleep(0.1)
-i2cData = getData(i2caddress, 99, 13)
+i2cData = getData(i2caddress, 99, 16)
 
 if "error" not in i2cData:
 	sys.stdout.write(i2cData)

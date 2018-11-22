@@ -9,8 +9,12 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "express": "^4.16.4",
+    "find-exec": "^1.0.0",
+    "howler": "^2.0.15",
     "mqtt": "^2.18.8",
     "nodemon": "^1.18.4",
+    "socket.io": "^2.1.1",
     "ws": "^6.1.0"
   }
 }
