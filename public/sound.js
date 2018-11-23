@@ -16,38 +16,35 @@ socket.on('state', function(data){
 	prox = data[1];
 	console.log(data);
 
-	switch (state) {
+	myState = state !== myState ? state : myState;
+
+	switch (myState) {
 	  // Dark
-	  case 0:
+	  case 'DARK':
 	    playOneShot('k', 0, 11);
-	    if(myState != 'DARK') myState = 'DARK';
 	    break;
 	  // Idle
-	  case 1:
+	  case 'IDLE':
 	    playOneShot('d', 0, 1);
-	    if(myState != 'IDLE') myState = 'IDLE';
 	    break;
 	  // Interact
-	  case 2:
+	  case 'INTERACT':
 	    let audioId = Math.floor(mapNumber(prox, 0, 15, 0, 4));
 	    isOneShotPlaying = false;
 	    playOneShot('be', audioId, audioId);
-	    if(myState != 'INTERACT') myState = 'INTERACT';
 	    break;
 	  // Climax
-	  case 3:
+	  case 'CLIMAX':
 	    if(myState != 'CLIMAX') {
 	     	isOneShotPlaying = false;
 	      playOneShot('n', 0, 0);
-	      myState = 'CLIMAX';
 	    }
 	    break;
 	  // Shock
-	  case 4:
+	  case 'SHOCK':
 	    if(myState != 'SHOCK') {
 	      isOneShotPlaying = false;
 	      playOneShot('d', 4, 4);
-	      myState = 'SHOCK';
 	    }
 	    break;
 	  default:

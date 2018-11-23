@@ -8,6 +8,7 @@ var path = require('path');
 const app = express();
 const server = http.createServer(app); // Create normal http server
 var io = require('socket.io')(server);
+var port = 8000;
 
 // MQTT Server
 const mqtt = require('mqtt');
@@ -38,9 +39,14 @@ app.get('/', function(req, res) {
   res.sendFile(__dirname + '/index.html');
 });
 
-server.listen(8000, function listening() {
-  console.log('Listening on %d', server.address().port);
-});
+try {
+  server.listen(port, function listening() {
+    console.log('Listening on %d', server.address().port);
+  });
+}
+catch (err) {
+  console.log(err);
+}
 
 io.on('connection', function(socket){
   console.log('A user connected');
@@ -101,21 +107,31 @@ client.on('message', (topic, message) => {
 // Commandline string interface for testing
 stdin.addListener('data', function(d) {
   var string = d.toString().trim();
-  if(string == 'happy') {
-    state = 'HAPPY';
+  if(string === 'dark') {
+    state = 'DARK';
     sendStateUpdate();
-  } else if (string == 'scared') {
-    state = 'SCARED';
+  }
+  else if (string === 'idle') {
+    state = 'IDLE';
     sendStateUpdate();
-  } else if (string == 'curious') {
-    state = 'CURIOUS';
+  }
+  else if (string === 'interact') {
+    state = 'INTERACT';
+    sendStateUpdate();
+  }
+  else if (string === 'climax') {
+    state = 'CLIMAX';
+    sendStateUpdate();
+  }
+  else if (string === 'shock') {
+    state = 'SHOCK';
     sendStateUpdate();
   }
 });
 
 function sendDataUpdate() {
-  console.log('Is connected? ' + client.connected);
   if(!client.connected) {
+    console.log('Is connected? ' + client.connected);
     audio.playOneShot('p', 0, 0);
   }
 
@@ -127,15 +143,20 @@ function sendDataUpdate() {
     // Split the string into an array, and convert to Numbers
     msg = msg.split(",").map(Number);
 
-    io.emit('state', [msg[0], msg[1]]);
+    // Store last state, so we can limit data to only be sent, when changes occur
+    let lastState = state;
+    state = states[msg[0]];
 
-    // console.log("Parsed Python data: " + msg);
-    // console.log("Sending data to server.");
+    // Transmit state and data to everyone relevant
+    io.emit('state', [state, msg[1]]);
+    if(lastState !== state) {
+      sendStateUpdate();
+    }
     var dataToSend = JSON.stringify({clientInfo: myInfo, clientData: msg})
     client.publish('sem_client/data', dataToSend);
   })
   .catch(function(error) {
-    console.log(error);
+    console.log(error.message);
   });
 }
 
@@ -145,30 +166,33 @@ function sendStateUpdate () {
   client.publish('sem_client/state', dataToSend);
 }
 
-function handleOtherStateRequest (message) {
+function handleOtherStateRequest(message) {
   var otherState = message.toString();
-
-  if(otherState != state) {
-    state = otherState + '_OTHER';
-    console.log('Received state update. So now my state is ' + state);
-  } else {
-    console.log('The others were told that I am ' + state);
+  if(otherState !== state) {
+    state = otherState;
+    let stateId = states.findIndex(function(elem) {return elem === state});
+    console.log('Received state update. So now my state is ' + state + ' with id ' + stateId);
+    i2c.i2cWrite([stateId]).then(function(msg) {
+      console.log(msg);
+    })
+    .catch(function(error) {
+      console.log(error.message);
+    });
   }
-
-  setTimeout(function() {
-    state = 'IDLE';
-    console.log('My state is back to ' + state);
-  }, 5000);
 }
 
 // Check for command line arguments
 function checkForCommandlineArguments() {
-  if(process.argv.indexOf('-ip') != -1) {
+  if(process.argv.indexOf('-ip') !== -1) {
     configs.brokerIp = process.argv[process.argv.indexOf('-ip') + 1]; //grab the next item
   }
 
-  if(process.argv.indexOf('-id') != -1) {
+  if(process.argv.indexOf('-id') !== -1) {
     configs.semeionId = process.argv[process.argv.indexOf('-id') + 1]; //grab the next item
+  }
+
+  if(process.argv.indexOf('-port') !== -1) {
+    port = process.argv[process.argv.indexOf('-port') + 1]; //grab the next item
   }
 }
 
