@@ -9,6 +9,7 @@ const app = express();
 const server = http.createServer(app); // Create normal http server
 var io = require('socket.io')(server);
 var port = 8000;
+var shouldUseI2C = '0';
 
 // MQTT Server
 const mqtt = require('mqtt');
@@ -22,6 +23,7 @@ const client = mqtt.connect('mqtt://' + configs.brokerIp);
 var myInfo = {'name': 'semclient' + configs.semeionId, 'clientId' : ''};
 const states = ['DARK', 'IDLE', 'INTERACT', 'CLIMAX', 'SHOCK']; 
 var state = 'DARK';
+var prox = 0;
 var lastIsConnected = false;
 
 var sendDataInterval;
@@ -135,29 +137,32 @@ function sendDataUpdate() {
     audio.playOneShot('p', 0, 0);
   }
 
-  i2c.i2cRead().then(function(msg) {
-    // Convert the received buffer to a string
-    msg = msg.toString('utf8');
-    // Remove null bytes, which are used to terminate I2C communication
-    msg = msg.substring(0, /\0/.exec(msg).index);
-    // Split the string into an array, and convert to Numbers
-    msg = msg.split(",").map(Number);
+  if(shouldUseI2C === '1') {
+    i2c.i2cRead().then(function(msg) {
+      // Convert the received buffer to a string
+      msg = msg.toString('utf8');
+      // Remove null bytes, which are used to terminate I2C communication
+      msg = msg.substring(0, /\0/.exec(msg).index);
+      // Split the string into an array, and convert to Numbers
+      msg = msg.split(",").map(Number);
 
-    // Store last state, so we can limit data to only be sent, when changes occur
-    let lastState = state;
-    state = states[msg[0]];
+      // Store last state, so we can limit data to only be sent, when changes occur
+      let lastState = state;
+      state = states[msg[0]];
+      prox = msg[1];
 
-    // Transmit state and data to everyone relevant
-    io.emit('state', [state, msg[1]]);
-    if(lastState !== state) {
-      sendStateUpdate();
-    }
-    var dataToSend = JSON.stringify({clientInfo: myInfo, clientData: msg})
-    client.publish('sem_client/data', dataToSend);
-  })
-  .catch(function(error) {
-    console.log(error.message);
-  });
+      // Transmit state and data to everyone relevant
+      io.emit('state', [state, prox]);
+      if(lastState !== state) {
+        sendStateUpdate();
+      }
+      var dataToSend = JSON.stringify({clientInfo: myInfo, clientData: msg})
+      client.publish('sem_client/data', dataToSend);
+    })
+    .catch(function(error) {
+      console.log(error.message);
+    });
+  }
 }
 
 function sendStateUpdate () {
@@ -168,16 +173,19 @@ function sendStateUpdate () {
 
 function handleOtherStateRequest(message) {
   var otherState = message.toString();
-  if(otherState !== state) {
+  if(otherState !== state && otherState == 'SHOCK' || otherState == 'CLIMAX') {
     state = otherState;
     let stateId = states.findIndex(function(elem) {return elem === state});
     console.log('Received state update. So now my state is ' + state + ' with id ' + stateId);
-    i2c.i2cWrite([stateId]).then(function(msg) {
-      console.log(msg);
-    })
-    .catch(function(error) {
-      console.log(error.message);
-    });
+    io.emit('state', [state, prox]);
+    if(shouldUseI2C === '1') {
+      i2c.i2cWrite(stateId).then(function(msg) {
+        console.log(msg.toString('utf8'));
+      })
+      .catch(function(error) {
+        console.log(error.message);
+      });
+    }
   }
 }
 
@@ -193,6 +201,10 @@ function checkForCommandlineArguments() {
 
   if(process.argv.indexOf('-port') !== -1) {
     port = process.argv[process.argv.indexOf('-port') + 1]; //grab the next item
+  }
+
+  if(process.argv.indexOf('-i2c') !== -1) {
+    shouldUseI2C = process.argv[process.argv.indexOf('-i2c') + 1]; //grab the next item
   }
 }
 

@@ -15,9 +15,7 @@ socket.on('state', function(data){
 	prox = data[1];
 	console.log(data);
 
-	myState = state !== myState ? state : myState;
-
-	switch (myState) {
+	switch (state) {
 	  // Dark
 	  case 'DARK':
 	    playOneShot('k', 0, 11);
@@ -49,6 +47,8 @@ socket.on('state', function(data){
 	  default:
 	    break;
 	}
+
+  myState = state !== myState ? state : myState;
 });
 
 function playSound(filePrefix, fileNumMin, fileNumMax, shouldLoop) {
@@ -113,15 +113,15 @@ function stopLoop() {
 
 function playOneShot(filePrefix, fileNumMin, fileNumMax) {
   if(!isOneShotPlaying) {
-   isOneShotPlaying = true;
-   playSound(filePrefix, fileNumMin, fileNumMax, false).then(function(msg) {
-     console.log(msg);
-     isOneShotPlaying = false;
-   })
-   .catch(function(err) {
-     console.log('Error in one shot sound: ' + err);
-     isOneShotPlaying = false;
-   });
+    isOneShotPlaying = true;
+    playSound(filePrefix, fileNumMin, fileNumMax, false).then(function(msg) {
+      console.log(msg);
+      isOneShotPlaying = false;
+    })
+    .catch(function(err) {
+      console.log('Error in one shot sound: ' + err);
+      isOneShotPlaying = false;
+    });
   }
 }
 

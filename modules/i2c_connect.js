@@ -36,37 +36,32 @@ function i2cRead() {
 
 /**
  * Writes some Array to the ATMega via I2C
- * @param  {Array} The data to be written. Can be up to 32 bytes, but preferably less.
+ * @param  {Number} The data to be written. Can be up to 32 bytes, but preferably less.
  * @return {Promise} A Promise object, which resolves when we receive data and rejects if we receive an error
  */
 function i2cWrite(data) {
   return new Promise(function(resolve, reject) {
-    if(Array.isArray(data)) {
-      var spawn = require('child_process').spawn;
-      var process = spawn('python3', [i2cWritePath, data]);
+    var spawn = require('child_process').spawn;
+    var process = spawn('python3', [i2cWritePath, data]);
 
-      process.stdout.on('data', function (msg) {
-        process.kill();
-        console.log('Successfully connected to i2cWrite. Parsing data...');
-        resolve(msg);
-      });
+    process.stdout.on('data', function (msg) {
+      process.kill();
+      console.log('Successfully connected to i2cWrite.');
+      resolve(msg);
+    });
 
-      process.stderr.on('data', (data) => {
-        process.kill();
-        reject(Error('i2cWrite gave off an error: ' + data));
-      });
+    process.stderr.on('data', (data) => {
+      process.kill();
+      reject(Error('i2cWrite gave off an error: ' + data));
+    });
 
-      process.on('close', (code) => {
-        reject(Error('i2cWrite was closed with this code: ' + code));
-      });
+    process.on('close', (code) => {
+      reject(Error('i2cWrite was closed with this code: ' + code));
+    });
 
-      process.on('error', (err) => {
-        reject(Error('An error occured with i2cWrite: ' + err));
-      });
-    }
-    else {
-      reject('The passed data to write is not an Array.');
-    }
+    process.on('error', (err) => {
+      reject(Error('An error occured with i2cWrite: ' + err));
+    });
   });
 }
 
