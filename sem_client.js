@@ -21,7 +21,7 @@ const client = mqtt.connect('mqtt://' + configs.brokerIp);
 var myInfo = {'name': 'semclient' + configs.semeionId, 'clientId' : ''};
 const states = ['DARK', 'IDLE', 'INTERACT', 'CLIMAX', 'SHOCK']; 
 var state = 'DARK';
-var lastIsConnected = false;
+
 
 var sendDataInterval;
 
@@ -66,20 +66,9 @@ client.on('connect', () => {
 
   // Subscribe to relevant channels
   client.subscribe('sem_client/other_state');
-  //client.subscribe('controller/connect');
 
   // Inform controllers that sem_client is connected and send this Id
-  console.log('Now publishing connect');
-  client.publish('sem_client/connect', JSON.stringify(myInfo), {qos: 1}, function(error) {
-    console.log('callback');
-    console.log(error);
-  });
-  // setTimeout(function() {
-  //   console.log('Sending connect');
-  //   client.publish('sem_client/connect', JSON.stringify(myInfo));
-  // }, 2000);
-
-  lastIsConnected = true;
+  client.publish('sem_client/connect', JSON.stringify(myInfo));
 
   if(!sendDataInterval) {
     sendDataInterval = setInterval(sendDataUpdate, 500);
@@ -90,9 +79,7 @@ client.on('message', (topic, message) => {
   //console.log('received message %s %s', topic, message)
   switch (topic) {
     case 'sem_client/other_state':
-      return handleOtherStateRequest(message)
-    case 'controller/connect':
-      return; //client.publish('sem_client/connect', JSON.stringify(myInfo));
+      return handleOtherStateRequest(message);
   }
 
   console.log('No handler for topic %s', topic);
