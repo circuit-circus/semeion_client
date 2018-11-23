@@ -15,44 +15,36 @@ socket.on('state', function(data){
 	prox = data[1];
 	console.log(data);
 
-	switch (state) {
+	myState = state !== myState ? state : myState;
+
+	switch (myState) {
 	  // Dark
-	  case 0:
-			stopLoop();
-			playOneShot('k', 0, 11);
-			if(myState !== 'DARK') myState = 'DARK';
-			break;
+	  case 'DARK':
+	    playOneShot('k', 0, 11);
+	    break;
 	  // Idle
-	  case 1:
-			stopLoop();
-			playOneShot('d', 0, 1);
-			if(myState !== 'IDLE') myState = 'IDLE';
-			break;
+	  case 'IDLE':
+	    playOneShot('d', 0, 1);
+	    break;
 	  // Interact
-	  case 2:
-			let audioRate = mapNumber(prox, 0, 15, 0, 4);
-			console.log(audioRate);
-			if(!isLooping) playLoop('test', 2, 2);
-			if(loopedAudio !== undefined) loopedAudio.rate(audioRate);
-			if(myState !== 'INTERACT') myState = 'INTERACT';
-			break;
+	  case 'INTERACT':
+	    let audioId = Math.floor(mapNumber(prox, 0, 15, 0, 4));
+	    isOneShotPlaying = false;
+	    playOneShot('be', audioId, audioId);
+	    break;
 	  // Climax
-	  case 3:
-			stopLoop();
-			if(myState !== 'CLIMAX') {
-				isOneShotPlaying = false;
-				playOneShot('n', 0, 0);
-				myState = 'CLIMAX';
-			}
-			break;
+	  case 'CLIMAX':
+	    if(myState != 'CLIMAX') {
+	     	isOneShotPlaying = false;
+	      playOneShot('n', 0, 0);
+	    }
+	    break;
 	  // Shock
-	  case 4:
-			stopLoop();
-			if(myState !== 'SHOCK') {
-				isOneShotPlaying = false;
-				playOneShot('d', 4, 4);
-				myState = 'SHOCK';
-			}
+	  case 'SHOCK':
+	    if(myState != 'SHOCK') {
+	      isOneShotPlaying = false;
+	      playOneShot('d', 4, 4);
+	    }
 	    break;
 	  default:
 	    break;

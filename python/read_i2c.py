@@ -22,9 +22,9 @@ sleep(0.1)
 i2cData = getData(i2caddress, 99, 16)
 
 if "error" not in i2cData:
-	sys.stdout.write(i2cData)
+    sys.stdout.write(i2cData)
 else:
-	sys.stderr.write(i2cData)
+    sys.stderr.write(i2cData)
 
 # Close python script and clean output
 sys.stderr.flush()
