@@ -1,18 +1,25 @@
 // sem_client.js
-const configs = require('./configs.js');
+let shouldUseI2C = '0';
+let port = 8000;
+
 checkForCommandlineArguments();
 
-const mqtt_client = require('./modules/mqtt_client');
+const mqtt_service = require('./modules/mqtt_service');
+const i2c = require('./modules/i2c_connect');
 const audio = require('./modules/audio');
 const utility = require('./modules/utility');
+let stdin = process.openStdin();
 
 // Express Server
 const express = require('express');
 const app = express();
-var server = require('http').createServer(app);  
+let server = require('http').createServer(app);  
 var io = require('socket.io')(server);
-var port = 8000;
 
+const states = ['DARK', 'IDLE', 'INTERACT', 'CLIMAX', 'SHOCK'];
+let currentState = 'DARK';
+let sendDataInterval;
+let prox = 0;
 
 // Express Server Calls
 app.use(express.static(__dirname + '/public'));
@@ -22,23 +29,124 @@ app.get('/', function(req, res) {
   res.sendFile(__dirname + '/index.html');
 });
 
-app.listen(port, function() {
+mqtt_service.initializeMqtt().then(function(client) {
+  mqtt_service.client = client;
+
+  mqtt_service.client.on('message', (topic, message) => {
+    //console.log('received message %s %s', topic, message)
+    switch(topic) {
+      case 'sem_client/other_state':
+        return handleOtherStateRequest(message);
+    }
+    console.log('No handler for topic %s', topic);
+  });
+})
+.catch(function(err) {
+  console.log(err);
+});
+
+io.on('connection', function(socket){
+  console.log('A user connected');
+});
+
+server.listen(port, function() {
   console.log('Node app is running on port', port);
 });
 
+if(!sendDataInterval) {
+  sendDataInterval = setInterval(sendDataUpdate, 500);
+}
 
-io.on('connection', function(socket){
-  console.log('A user connected with the websocket');
+function sendDataUpdate() {
+  if(shouldUseI2C === '1') {
+    i2c.i2cRead().then(function(msg) {
+      // Convert the received buffer to a string
+      msg = msg.toString('utf8');
+      // Remove null bytes, which are used to terminate I2C communication
+      msg = msg.substring(0, /\0/.exec(msg).index);
+      // Split the string into an array, and convert to Numbers
+      msg = msg.split(",").map(Number);
+
+      // Store last state, so we can limit data to only be sent, when changes occur
+      let lastState = currentState;
+      currentState = states[msg[0]];
+      prox = msg[1];
+
+      // Transmit state and data to everyone relevant
+      io.emit('state', [currentState, prox]);
+      if(lastState !== currentState) {
+        sendStateUpdate();
+      }
+
+      let dataToSend = JSON.stringify({clientInfo: mqtt_service.myInfo, clientData: msg})
+      if(mqtt_service.client !== undefined) {
+        mqtt_service.client.publish('sem_client/data', dataToSend);
+      }
+    })
+    .catch(function(error) {
+      console.log(error.message);
+    });
+  }
+}
+
+function sendStateUpdate () {
+  console.log('My state is now %s', currentState);
+  var dataToSend = JSON.stringify({clientInfo: mqtt_service.myInfo, clientState: currentState});
+  if(mqtt_service.client !== undefined) {
+    mqtt_service.client.publish('sem_client/state', dataToSend);
+  }
+}
+
+function handleOtherStateRequest(message) {
+  var otherState = message.toString();
+  if(otherState !== currentState && otherState == 'SHOCK' || otherState == 'CLIMAX') {
+    currentState = otherState;
+    let stateId = states.findIndex(function(elem) {return elem === currentState});
+    console.log('Received state update. So now my state is ' + currentState + ' with id ' + stateId);
+    io.emit('state', [currentState, prox]);
+    if(shouldUseI2C === '1') {
+      i2c.i2cWrite(stateId).then(function(msg) {
+        console.log(msg.toString('utf8'));
+      })
+      .catch(function(error) {
+        console.log(error.message);
+      });
+    }
+  }
+}
+
+// Commandline string interface for testing
+stdin.addListener('data', function(d) {
+  let string = d.toString().trim();
+  if(string === 'dark') {
+    currentState = 'DARK';
+    sendStateUpdate();
+  }
+  else if (string === 'idle') {
+    currentState = 'IDLE';
+    sendStateUpdate();
+  }
+  else if (string === 'interact') {
+    currentState = 'INTERACT';
+    sendStateUpdate();
+  }
+  else if (string === 'climax') {
+    currentState = 'CLIMAX';
+    sendStateUpdate();
+  }
+  else if (string === 'shock') {
+    currentState = 'SHOCK';
+    sendStateUpdate();
+  }
 });
-
 
 // Check for command line arguments
 function checkForCommandlineArguments() {
-  if(process.argv.indexOf('-ip') != -1) {
+  if(process.argv.indexOf('-ip') !== -1) {
     configs.brokerIp = process.argv[process.argv.indexOf('-ip') + 1]; //grab the next item
   }
 
-  if(process.argv.indexOf('-id') != -1) {
+  if(process.argv.indexOf('-id') !== -1) {
     configs.semeionId = process.argv[process.argv.indexOf('-id') + 1]; //grab the next item
   }
 
@@ -46,5 +154,8 @@ function checkForCommandlineArguments() {
     port = process.argv[process.argv.indexOf('-port') + 1]; //grab the next item
   }
 
+  if(process.argv.indexOf('-i2c') !== -1) {
+    shouldUseI2C = process.argv[process.argv.indexOf('-i2c') + 1]; //grab the next item
+  }
 }
 

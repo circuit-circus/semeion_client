@@ -7,9 +7,8 @@ var loopedAudio, oneShotAudio;
 var loopedAudio;
 var oneShotAudio;
 var isOneShotPlaying = false;
-var shouldKeepLooping = true;
-
-socket
+var isLooping = false;
+var isFadingLoop = false;
 
 socket.on('state', function(data){
 	var state = data[0];
@@ -18,41 +17,38 @@ socket.on('state', function(data){
 
 	switch (state) {
 	  // Dark
-	  case 0:
+	  case 'DARK':
 	    playOneShot('k', 0, 11);
-	    if(myState != 'DARK') myState = 'DARK';
 	    break;
 	  // Idle
-	  case 1:
+	  case 'IDLE':
 	    playOneShot('d', 0, 1);
-	    if(myState != 'IDLE') myState = 'IDLE';
 	    break;
 	  // Interact
-	  case 2:
+	  case 'INTERACT':
 	    let audioId = Math.floor(mapNumber(prox, 0, 15, 0, 4));
 	    isOneShotPlaying = false;
 	    playOneShot('be', audioId, audioId);
-	    if(myState != 'INTERACT') myState = 'INTERACT';
 	    break;
 	  // Climax
-	  case 3:
+	  case 'CLIMAX':
 	    if(myState != 'CLIMAX') {
 	     	isOneShotPlaying = false;
 	      playOneShot('n', 0, 0);
-	      myState = 'CLIMAX';
 	    }
 	    break;
 	  // Shock
-	  case 4:
+	  case 'SHOCK':
 	    if(myState != 'SHOCK') {
 	      isOneShotPlaying = false;
 	      playOneShot('d', 4, 4);
-	      myState = 'SHOCK';
 	    }
 	    break;
 	  default:
 	    break;
 	}
+
+  myState = state !== myState ? state : myState;
 });
 
 function playSound(filePrefix, fileNumMin, fileNumMax, shouldLoop) {
@@ -62,16 +58,21 @@ function playSound(filePrefix, fileNumMin, fileNumMax, shouldLoop) {
     fileName += '.mp3';
     if(shouldLoop) {
       loopedAudio = new Howl({
-      	src: ['/sfx/' + fileName],
-			  autoplay: true,
-			  loop: true,
-			  volume: 1.0,
-			  onend: function() {
-			    resolve('Successfully played ' + fileName);
-			 	},
-			 	onloaderror: function(id, err) {
-			 		reject('Can\'t play ' + id + ': ' + err);
-			 	}
+				src: ['/sfx/' + fileName],
+				autoplay: true,
+				loop: true,
+				volume: 1.0,
+				onend: function() {
+				resolve('Successfully played ' + fileName);
+				},
+				onloaderror: function(id, err) {
+					reject('Can\'t play ' + id + ': ' + err);
+				},
+				onfade: function() {
+					isLooping = false;
+					isFadingLoop = false;
+					this.stop();
+				}
 			});
     }
     else {
@@ -91,7 +92,8 @@ function playSound(filePrefix, fileNumMin, fileNumMax, shouldLoop) {
 }
 
 function playLoop(filePrefix, fileNumMin, fileNumMax) {
-  if(shouldKeepLooping) {
+  if(!isLooping) {
+  	isLooping = true;
     playSound(filePrefix, fileNumMin, fileNumMax, true).then(function(msg) {
       playLoop(filePrefix, fileNumMin, fileNumMax);
       console.log(msg);
@@ -103,20 +105,23 @@ function playLoop(filePrefix, fileNumMin, fileNumMax) {
 }
 
 function stopLoop() {
-  shouldKeepLooping = false;
+  if(loopedAudio !== undefined && loopedAudio.playing()) {
+  	if(!isFadingLoop) loopedAudio.fade(1, 0, 500);
+  	isFadingLoop = true;
+  }
 }
 
 function playOneShot(filePrefix, fileNumMin, fileNumMax) {
   if(!isOneShotPlaying) {
-   isOneShotPlaying = true;
-   playSound(filePrefix, fileNumMin, fileNumMax, false).then(function(msg) {
-     console.log(msg);
-     isOneShotPlaying = false;
-   })
-   .catch(function(err) {
-     console.log('Error in one shot sound: ' + err);
-     isOneShotPlaying = false;
-   });
+    isOneShotPlaying = true;
+    playSound(filePrefix, fileNumMin, fileNumMax, false).then(function(msg) {
+      console.log(msg);
+      isOneShotPlaying = false;
+    })
+    .catch(function(err) {
+      console.log('Error in one shot sound: ' + err);
+      isOneShotPlaying = false;
+    });
   }
 }
 
