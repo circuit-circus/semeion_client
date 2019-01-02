@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "brain.js": "^1.6.1",
     "express": "^4.16.4",
     "find-exec": "^1.0.0",
     "howler": "^2.0.15",

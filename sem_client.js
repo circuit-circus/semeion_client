@@ -30,6 +30,7 @@ var sendDataInterval;
 const i2c = require('./modules/i2c_connect');
 const audio = require('./modules/audio');
 const utility = require('./modules/utility');
+const ml = require('./modules/machine_learning');
 
 // Express Server Calls
 app.use(express.static(__dirname + '/public'));
@@ -50,6 +51,9 @@ catch (err) {
 
 io.on('connection', function(socket){
   console.log('A user connected');
+  ml.readDataAndTrain().then(function(msg) {
+    console.log(ml.runNet());
+  });
 });
 
 // MQTT Server Calls
