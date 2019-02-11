@@ -6,13 +6,13 @@ const fs = require('fs');
 var trainLoc = __dirname + '/../brain_data/data.json';
 var brainLoc = __dirname + '/../brain_data/brain.json';
 
-var trainingData;
+var trainingData, parsedTrainingData;
 
 // Our configurations for the training part of the network
 const trainConfig = {
 	// log : details => console.log(details), // Uncomment this line, if you want to get updates on the training
 	errorThresh : 0.001, // Stop training, if we reach an error rate of this much
-	learningRate : 0.1, // Higher rate means faster learning, but less accurate
+	learningRate : 0.1, // Higher rate means faster learning, but less accurate and more error prone
 	iterations : 5000 // Stop training, if we go through this many iterations
 };
 
@@ -32,8 +32,11 @@ function readDataAndTrain() {
 		// Read training data first
 		readJSONFile(trainLoc).then(function(res) {
 
+			// save the raw data in a variable
+			trainingData = res;
+
 			// Parse the training data so that it's ready for training
-			trainingData = parseData(res);
+			parsedTrainingData = parseData(trainingData);
 
 			// Read a saved brain if we have it
 			readJSONFile(brainLoc).then(function(brain) {
@@ -41,9 +44,13 @@ function readDataAndTrain() {
 				// We have read the brain file, so let's load it into the network
 				net.fromJSON(brain);
 
+				// Train the old brain
 				trainNet().then(function(dat) {
 					console.log(dat);
 					resolve('Done with training from an old brain');
+				}).catch(function(err) {
+					console.error(err);
+					reject(err);
 				});
 
 			}).catch(function(err) {
@@ -53,6 +60,9 @@ function readDataAndTrain() {
 				trainNet().then(function(dat) {
 					console.log(dat);
 					resolve('Done with training from a new brain');
+				}).catch(function(err) {
+					console.error(err);
+					reject(err);
 				});
 
 			});
@@ -62,6 +72,15 @@ function readDataAndTrain() {
 			reject(err);
 		});
 	})
+}
+
+function writeSettings(newSettings) {
+	trainingData.push(newSettings);
+	writeJSONFile(trainLoc, trainingData).then(function(res) {
+		console.log(res);
+	}).catch(function(err) {
+		console.log(err);
+	});
 }
 
 /**
@@ -81,7 +100,7 @@ function runNet() {
  */
 function trainNet() {
 	return new Promise(function(resolve, reject) {
-		net.train(trainingData, trainConfig);
+		net.train(parsedTrainingData, trainConfig);
 
 		fs.writeFile(brainLoc, JSON.stringify(net.toJSON()), (err) => {
 			if(err) {
@@ -114,6 +133,27 @@ function readJSONFile(loc) {
 				catch(e) {
 					reject(e);
 				}
+			}
+		});
+	});
+}
+
+/**
+ * Writes data to a file at loc
+ * @param  {[type]} loc  [description]
+ * @param  {[type]} data [description]
+ * @return {[type]}      [description]
+ */
+function writeJSONFile(loc, data) {
+	return new Promise(function(resolve, reject) {
+		let strDat = JSON.stringify(data);
+		fs.writeFile(loc, strDat, (err) => {
+			if(err) {
+				console.log("Err");
+				reject(err);
+			}
+			else {
+				resolve('Successfully wrote data to ' + loc);
 			}
 		});
 	});
@@ -167,5 +207,6 @@ function parseData(data) {
 
 module.exports = {
   readDataAndTrain,
+  writeSettings,
   runNet
 }

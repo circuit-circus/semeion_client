@@ -52,7 +52,11 @@ catch (err) {
 io.on('connection', function(socket){
   console.log('A user connected');
   ml.readDataAndTrain().then(function(msg) {
-    console.log(ml.runNet());
+    let newSettings = ml.runNet();
+    newSettings.time = 1.0;
+    ml.writeSettings(newSettings);
+  }).catch(function(err) {
+    console.log(err);
   });
 });
 
