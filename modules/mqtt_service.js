@@ -6,8 +6,8 @@ let client;
 
 let myInfo = {'name': 'semclient' + configs.semeionId, 'clientId' : ''};
 
-function initializeMqtt() {
-  client = mqtt.connect('mqtt://' + configs.brokerIp);
+function initializeMqtt(serverIp) {
+  client = mqtt.connect('mqtt://' + serverIp);
 
   return new Promise(function(resolve, reject) {
     /**

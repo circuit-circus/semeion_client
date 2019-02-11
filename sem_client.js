@@ -9,6 +9,9 @@ const i2c = require('./modules/i2c_connect');
 const audio = require('./modules/audio');
 const utility = require('./modules/utility');
 let stdin = process.openStdin();
+const dns = require('dns');
+const configs = require('./configs.js');
+
 
 // Express Server
 const express = require('express');
@@ -29,21 +32,30 @@ app.get('/', function(req, res) {
   res.sendFile(__dirname + '/index.html');
 });
 
-mqtt_service.initializeMqtt().then(function(client) {
-  mqtt_service.client = client;
+// Find server ip
+lookupServerIp().then(function(serverIp) {
 
-  mqtt_service.client.on('message', (topic, message) => {
-    //console.log('received message %s %s', topic, message)
-    switch(topic) {
-      case 'sem_client/other_state':
-        return handleOtherStateRequest(message);
-    }
-    console.log('No handler for topic %s', topic);
+  console.log('Found server ip! It is ' + serverIp);
+  // Then initialize mqtt client
+  mqtt_service.initializeMqtt(serverIp).then(function(client) {
+    mqtt_service.client = client;
+
+    console.log('Created mqtt client!');
+
+    mqtt_service.client.on('message', (topic, message) => {
+      //console.log('received message %s %s', topic, message)
+      switch(topic) {
+        case 'sem_client/other_state':
+          return handleOtherStateRequest(message);
+      }
+      console.log('No handler for topic %s', topic);
+    });
+  })
+  .catch(function(err) {
+    console.log(err);
   });
+
 })
-.catch(function(err) {
-  console.log(err);
-});
 
 io.on('connection', function(socket){
   console.log('A user connected');
@@ -56,6 +68,29 @@ server.listen(port, function() {
 if(!sendDataInterval) {
   sendDataInterval = setInterval(sendDataUpdate, 500);
 }
+
+// Get the IP of the server from it's hostname (defined in configs)
+function lookupServerIp() {
+  return new Promise(function(resolve, reject) {
+
+    if(!configs|| !configs.serverHostname) {
+      reject('Error: Cannot find serverHostname in configs');
+    }
+    
+    dns.lookup(configs.serverHostname, function(err, result) {
+  
+      if(err) {
+        reject('Error: ' + err);
+      }
+
+      if(result && result != '') {
+        resolve(result);
+      }
+    });
+    
+  });
+}
+
 
 function sendDataUpdate() {
   if(shouldUseI2C === '1') {
