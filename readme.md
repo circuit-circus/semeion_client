@@ -14,13 +14,17 @@ Install the node modules dependencies by running `npm install`.
 Create a `configs.js` file. It should look like the following:
 
     module.exports = {
-      brokerIp : '',
+      serverHostname : '',
       semeionId : ''
     }
-*brokerIp* is the IP of the broker and *semeionId* is a unique number (written as a string) between 1-15.
+*serverHostname* is the hostname of the broker (e.g. sempi01.local) and *semeionId* is a unique number (written as a string) between 1-15.
 
-Now you're ready to go! ✨ Run `node sem_client.js` to start the client.
+Now you're ready to go! ✨ Run `npm start` to start the client.
 
 The script's optional command-line arguments will overwrite the config file:
-`-ip` The broker IP
+`-hn` The server hostname
 `-id` The semeion client id
+
+Use the command line arguments like this:
+
+`npm start -- -hn sempi02.local`

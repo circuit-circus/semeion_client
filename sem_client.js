@@ -1,6 +1,7 @@
 // sem_client.js
 let shouldUseI2C = '0';
 let port = 8000;
+let configs = require('./configs.js');
 
 checkForCommandlineArguments();
 
@@ -10,7 +11,6 @@ const audio = require('./modules/audio');
 const utility = require('./modules/utility');
 let stdin = process.openStdin();
 const dns = require('dns');
-const configs = require('./configs.js');
 
 
 // Express Server
@@ -177,6 +177,11 @@ stdin.addListener('data', function(d) {
 
 // Check for command line arguments
 function checkForCommandlineArguments() {
+
+  if(process.argv.indexOf('-hn') !== -1) {
+    configs.serverHostname = process.argv[process.argv.indexOf('-hn') + 1]; //grab the next item
+  }
+
   if(process.argv.indexOf('-ip') !== -1) {
     configs.brokerIp = process.argv[process.argv.indexOf('-ip') + 1]; //grab the next item
   }
