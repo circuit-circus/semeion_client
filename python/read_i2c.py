@@ -18,7 +18,7 @@ def getData(address, offset, size):
         return("Unexpected I2C error:" + str(sys.exc_info()[0]))
 
 # Give the I2C device time to settle
-sleep(0.1)
+sleep(2)
 i2cData = getData(i2caddress, 99, 16)
 
 if "error" not in i2cData:
