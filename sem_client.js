@@ -9,6 +9,7 @@ const mqtt_service = require('./modules/mqtt_service');
 const i2c = require('./modules/i2c_connect');
 const audio = require('./modules/audio');
 const utility = require('./modules/utility');
+const ml = require('./modules/machine_learning');
 let stdin = process.openStdin();
 const dns = require('dns');
 
@@ -24,6 +25,9 @@ let isClimaxing = false;
 
 const i2cWriteRetriesMax = 3;
 let i2cWriteRetries = 0;
+
+let trainBrainInterval;
+const trainBrainIntervalTime = 5000;
 
 // Express Server Calls
 app.use(express.static(__dirname + '/public'));
@@ -68,6 +72,21 @@ server.listen(port, function() {
 
 if(!sendDataInterval) {
   sendDataInterval = setInterval(sendDataUpdate, sendDataIntervalTime);
+}
+
+if(!trainBrainInterval) {
+  trainBrainInterval = setInterval(function() {
+    ml.readDataAndTrain().then(function(msg) {
+        let newSettings = ml.runNet();
+        console.log(newSettings);
+        newSettings.time = random();
+        ml.writeSettings(newSettings);
+
+      }).catch(function(err) {
+        console.log(err);
+      });
+  },
+  trainBrainIntervalTime);
 }
 
 // Get the IP of the server from it's hostname (defined in configs)
@@ -135,7 +154,7 @@ function sendClimaxUpdate() {
 function handleOtherClimax(message) {
     io.emit('climax', message);
     if(shouldUseI2C === '1' && !isClimaxing) {
-      i2c.i2cWrite(1).then(function(msg) {
+      i2c.i2cWrite([0, 1, 150, 1]).then(function(msg) {
         console.log(msg.toString('utf8'));
       })
       .catch(function(error) {
