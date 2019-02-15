@@ -27,6 +27,7 @@ const i2cWriteRetriesMax = 3;
 let i2cWriteRetries = 0;
 
 let trainBrainInterval;
+let trainingBrain = false;
 const trainBrainIntervalTime = 5000;
 
 // Express Server Calls
@@ -76,15 +77,23 @@ if(!sendDataInterval) {
 
 if(!trainBrainInterval) {
   trainBrainInterval = setInterval(function() {
-    ml.readDataAndTrain().then(function(msg) {
+    if(!trainingBrain) {
+      trainingBrain = true;
+      ml.readDataAndTrain().then(function(msg) {
         let newSettings = ml.runNet();
         console.log(newSettings);
-        newSettings.time = random();
+        let i2cSettings = parseSettings(newSettings);
+        console.log(i2cSettings);
+        newSettings.time = Math.random();
+        console.log(newSettings);
         ml.writeSettings(newSettings);
-
+        writeThisToI2C(0, 97, i2cSettings);
+        trainingBrain = false;
       }).catch(function(err) {
         console.log(err);
+        trainingBrain = false;
       });
+    }
   },
   trainBrainIntervalTime);
 }
@@ -154,25 +163,41 @@ function sendClimaxUpdate() {
 function handleOtherClimax(message) {
     io.emit('climax', message);
     if(shouldUseI2C === '1' && !isClimaxing) {
-      i2c.i2cWrite([0, 1, 150, 1]).then(function(msg) {
-        console.log(msg.toString('utf8'));
-      })
-      .catch(function(error) {
-        console.log(error.message);
-        // Keep track of how many times we tried
-        i2cWriteRetries++;
-        // Only retry if we haven't exceeded the max
-        if(i2cWriteRetries < i2cWriteRetriesMax) {
-          // Wait some time, then try again
-          setTimeout(function() {handleOtherClimax(message)}, 250);
-        }
-        else {
-          // Reset retries amount
-          i2cWriteRetries = 0;
-        }
-      });
+      writeThisToI2C(1, 98, [0]);
     }
     isClimaxing = false;
+}
+
+function writeThisToI2C(data, offset, sett) {
+  i2c.i2cWrite(data, offset, sett).then(function(msg) {
+    console.log(msg.toString('utf8'));
+  })
+  .catch(function(error) {
+    console.log(error.message);
+    // Keep track of how many times we tried
+    i2cWriteRetries++;
+    // Only retry if we haven't exceeded the max
+    if(i2cWriteRetries < i2cWriteRetriesMax) {
+      // Wait some time, then try again
+      setTimeout(function() {writeThisToI2C(data, offset)}, 250);
+    }
+    else {
+      // Reset retries amount
+      i2cWriteRetries = 0;
+    }
+  });
+}
+
+function parseSettings(sett) {
+  let theSettings = JSON.parse(JSON.stringify(sett));
+  let settingsArray = [];
+  for(let s in theSettings) {
+    if(theSettings.hasOwnProperty(s)) {
+      theSettings[s] = Math.floor(Math.max(Math.min(theSettings[s], 1), 0) * 255);
+      settingsArray.push(theSettings[s]);
+    }
+  }
+  return settingsArray;
 }
 
 // Commandline string interface for testing
