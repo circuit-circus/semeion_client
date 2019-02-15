@@ -12,17 +12,18 @@ const utility = require('./modules/utility');
 let stdin = process.openStdin();
 const dns = require('dns');
 
-
 // Express Server
 const express = require('express');
 const app = express();
 let server = require('http').createServer(app);  
 var io = require('socket.io')(server);
 
-const states = ['DARK', 'IDLE', 'INTERACT', 'CLIMAX', 'SHOCK'];
-let currentState = 'DARK';
 let sendDataInterval;
-let prox = 0;
+const sendDataIntervalTime = 1000;
+let isClimaxing = false;
+
+const i2cWriteRetriesMax = 3;
+let i2cWriteRetries = 0;
 
 // Express Server Calls
 app.use(express.static(__dirname + '/public'));
@@ -43,10 +44,10 @@ lookupServerIp().then(function(serverIp) {
     console.log('Created mqtt client!');
 
     mqtt_service.client.on('message', (topic, message) => {
-      //console.log('received message %s %s', topic, message)
+      console.log('received message %s %s', topic, message);
       switch(topic) {
-        case 'sem_client/other_state':
-          return handleOtherStateRequest(message);
+        case 'sem_client/other_climax':
+          return handleOtherClimax(message);
       }
       console.log('No handler for topic %s', topic);
     });
@@ -66,7 +67,7 @@ server.listen(port, function() {
 });
 
 if(!sendDataInterval) {
-  sendDataInterval = setInterval(sendDataUpdate, 500);
+  sendDataInterval = setInterval(sendDataUpdate, sendDataIntervalTime);
 }
 
 // Get the IP of the server from it's hostname (defined in configs)
@@ -91,32 +92,25 @@ function lookupServerIp() {
   });
 }
 
-
+/**
+ * Attemps to read the i2c status, and calls MQTT to send out a potential climax
+ */
 function sendDataUpdate() {
   if(shouldUseI2C === '1') {
-    i2c.i2cRead().then(function(msg) {
-      // Convert the received buffer to a string
-      msg = msg.toString('utf8');
-      // Remove null bytes, which are used to terminate I2C communication
-      msg = msg.substring(0, /\0/.exec(msg).index);
-      // Split the string into an array, and convert to Numbers
-      msg = msg.split(",").map(Number);
+    i2c.i2cRead(4).then(function(msg) {
+      // Convert the received buffer to an array
+      let unoMsg = JSON.parse(msg);
+      console.log(unoMsg);
 
-      // Store last state, so we can limit data to only be sent, when changes occur
-      let lastState = currentState;
-      currentState = states[msg[0]];
-      prox = msg[1];
-
-      // Transmit state and data to everyone relevant
-      io.emit('state', [currentState, prox]);
-      if(lastState !== currentState) {
-        sendStateUpdate();
+      // The first index is the climax state
+      if(unoMsg[0] === 1) {
+        isClimaxing = true;
       }
 
-      let dataToSend = JSON.stringify({clientInfo: mqtt_service.myInfo, clientData: msg})
-      if(mqtt_service.client !== undefined) {
-        mqtt_service.client.publish('sem_client/data', dataToSend);
-      }
+      // Transmit state and data to the browser
+      io.emit('climax', isClimaxing);
+      // Transmit the climax to everyone 
+      if(isClimaxing) sendClimaxUpdate(isClimaxing);
     })
     .catch(function(error) {
       console.log(error.message);
@@ -124,54 +118,50 @@ function sendDataUpdate() {
   }
 }
 
-function sendStateUpdate () {
-  console.log('My state is now %s', currentState);
-  var dataToSend = JSON.stringify({clientInfo: mqtt_service.myInfo, clientState: currentState});
+/**
+ * Sends out the climax via MQTT
+ */
+function sendClimaxUpdate() {
+  var dataToSend = JSON.stringify({clientInfo: mqtt_service.myInfo, clientState: isClimaxing});
   if(mqtt_service.client !== undefined) {
-    mqtt_service.client.publish('sem_client/state', dataToSend);
+    mqtt_service.client.publish('sem_client/climax', dataToSend);
   }
 }
 
-function handleOtherStateRequest(message) {
-  var otherState = message.toString();
-  if(otherState !== currentState && otherState == 'SHOCK' || otherState == 'CLIMAX') {
-    currentState = otherState;
-    let stateId = states.findIndex(function(elem) {return elem === currentState});
-    console.log('Received state update. So now my state is ' + currentState + ' with id ' + stateId);
-    io.emit('state', [currentState, prox]);
-    if(shouldUseI2C === '1') {
-      i2c.i2cWrite(stateId).then(function(msg) {
+/**
+ * When other Sems climax, we receive it here. If this sem is not already climaxing, we attempt to write it to the Arduino a couple of times. 
+ * @param  {[type]} message 
+ */
+function handleOtherClimax(message) {
+    io.emit('climax', message);
+    if(shouldUseI2C === '1' && !isClimaxing) {
+      i2c.i2cWrite(1).then(function(msg) {
         console.log(msg.toString('utf8'));
       })
       .catch(function(error) {
         console.log(error.message);
+        // Keep track of how many times we tried
+        i2cWriteRetries++;
+        // Only retry if we haven't exceeded the max
+        if(i2cWriteRetries < i2cWriteRetriesMax) {
+          // Wait some time, then try again
+          setTimeout(function() {handleOtherClimax(message)}, 250);
+        }
+        else {
+          // Reset retries amount
+          i2cWriteRetries = 0;
+        }
       });
     }
-  }
+    isClimaxing = false;
 }
 
 // Commandline string interface for testing
 stdin.addListener('data', function(d) {
   let string = d.toString().trim();
-  if(string === 'dark') {
-    currentState = 'DARK';
-    sendStateUpdate();
-  }
-  else if (string === 'idle') {
-    currentState = 'IDLE';
-    sendStateUpdate();
-  }
-  else if (string === 'interact') {
-    currentState = 'INTERACT';
-    sendStateUpdate();
-  }
-  else if (string === 'climax') {
-    currentState = 'CLIMAX';
-    sendStateUpdate();
-  }
-  else if (string === 'shock') {
-    currentState = 'SHOCK';
-    sendStateUpdate();
+  if(string === 'climax') {
+    isClimaxing = true;
+    sendClimaxUpdate(isClimaxing);
   }
 });
 

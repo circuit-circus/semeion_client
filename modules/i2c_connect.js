@@ -7,11 +7,11 @@ let i2cWritePath = __dirname + '/../python/write_i2c.py';
  * Reads data from the ATMega/Tact sensor via I2C
  * @return {Promise} A Promise object, which resolves if data is received, but rejects if anything other happens.
  */
-function i2cRead() {
+function i2cRead(dataSize) {
   // console.log('Connecting to Python');
   return new Promise(function(resolve, reject) {
     var spawn = require('child_process').spawn;
-    var process = spawn('python3', [i2cReadPath]);
+    var process = spawn('python3', [i2cReadPath, dataSize]);
 
     process.stdout.on('data', function (data) {
       process.kill();
