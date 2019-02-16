@@ -6,14 +6,15 @@ const fs = require('fs');
 var trainLoc = __dirname + '/../brain_data/data.json';
 var brainLoc = __dirname + '/../brain_data/brain.json';
 
-var trainingData, parsedTrainingData;
+var trainingData = [], parsedTrainingData;
 
 // Our configurations for the training part of the network
 const trainConfig = {
 	// log : details => console.log(details), // Uncomment this line, if you want to get updates on the training
-	errorThresh : 0.001, // Stop training, if we reach an error rate of this much
+	errorThresh : 0.01, // Stop training, if we reach an error rate of this much
 	learningRate : 0.1, // Higher rate means faster learning, but less accurate and more error prone
-	iterations : 5000 // Stop training, if we go through this many iterations
+	iterations : 5000, // Stop training, if we go through this many iterations
+	timeout : 15000 // Stop training after this amount of milliseconds
 };
 
 const netConfig = {
@@ -29,20 +30,12 @@ const net = new brain.NeuralNetwork(netConfig);
  */
 function readDataAndTrain() {
 	return new Promise(function(resolve, reject) {
-		// Read training data first
-		readJSONFile(trainLoc).then(function(res) {
-
-			// save the raw data in a variable
-			trainingData = res;
-
-			// Parse the training data so that it's ready for training
-			parsedTrainingData = parseData(trainingData);
-
+		readSettings().then(function(res) {
 			// Read a saved brain if we have it
-			readJSONFile(brainLoc).then(function(brain) {
+			readJSONFile(brainLoc).then(function(brainJSON) {
 
 				// We have read the brain file, so let's load it into the network
-				net.fromJSON(brain);
+				net.fromJSON(brainJSON);
 
 				// Train the old brain
 				trainNet().then(function(dat) {
@@ -52,7 +45,6 @@ function readDataAndTrain() {
 					console.error(err);
 					reject(err);
 				});
-
 			}).catch(function(err) {
 
 				console.error(err);
@@ -64,28 +56,74 @@ function readDataAndTrain() {
 					console.error(err);
 					reject(err);
 				});
-
 			});
+		}).catch(function(err) {
+			console.error(err);
+		});
+	})
+}
+
+function startTraining() {
+	console.log('Starting to train brain.');
+	return new Promise(function(resolve, reject) {
+		if(trainingData.length === 1) {
+			readDataAndTrain().then(function(res) {
+				resolve(res);
+			}).catch(function(err) {
+				reject(err);
+			});
+		}
+		else {
+			// Train the old brain
+			trainNet().then(function(dat) {
+				resolve('Done with training from an old brain');
+			}).catch(function(err) {
+				console.error(err);
+				reject(err);
+			});
+		}
+	});
+}
+
+function writeSettings(newSettings) {
+	return new Promise(function(resolve, reject) {
+		readSettings().then(function(msg) {
+			resolve(msg);
+		}).catch(function(error) {
+			reject(error);
+		}).then(function() {
+			trainingData.push(newSettings);
+			writeJSONFile(trainLoc, trainingData).then(function(res) {
+				resolve(res);
+			}).catch(function(err) {
+				reject(err);
+			});
+		});
+	});
+}
+
+function readSettings() {
+	return new Promise(function(resolve, reject) {
+		readJSONFile(trainLoc).then(function(res) {
+
+			// save the raw data in a variable
+			trainingData = res;
+
+			// Parse the training data so that it's ready for training
+			parsedTrainingData = parseData(trainingData);
+
+			resolve('Successfully read training data.');
 
 		}).catch(function(err) {
 			console.error(err);
 			reject(err);
 		});
-	})
-}
-
-function writeSettings(newSettings) {
-	trainingData.push(newSettings);
-	writeJSONFile(trainLoc, trainingData).then(function(res) {
-		console.log(res);
-	}).catch(function(err) {
-		console.log(err);
 	});
 }
 
 /**
  * Run the neural network
- * @return {Array} The settings for Semeion that the neural network deems most likely at producing a high time value
+ * @return {Object} The settings for Semeion that the neural network deems most likely at producing a high time value
  */
 function runNet() {
 	var time = 1.0;
@@ -148,7 +186,6 @@ function writeJSONFile(loc, data) {
 		let strDat = JSON.stringify(data);
 		fs.writeFile(loc, strDat, (err) => {
 			if(err) {
-				console.log("Err");
 				reject(err);
 			}
 			else {
@@ -183,7 +220,7 @@ function parseData(data) {
 }
 
 module.exports = {
-  readDataAndTrain,
+  startTraining,
   writeSettings,
   runNet
 }
