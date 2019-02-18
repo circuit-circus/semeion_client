@@ -204,17 +204,24 @@ function writeJSONFile(loc, data) {
  */
 function parseData(data) {
 	let newData = [];
+
 	for(var i = 0; i < data.length; i++) {
 		let newObj = {
-			"output" : {
-				"climaxThreshold": data[i].climaxThreshold,
-				"deactiveThreshold": data[i].deactiveThreshold,
-				"reactionThreshold": data[i].reactionThreshold
-			},
-			"input" : {
-				"time" : data[i].time
-			}
+			"output" : {},
+			"input" : {}
 		};
+
+		// Go through all properties and parse them accordingly as input or output
+		for(var p in data[i]) {
+	    if(data[i].hasOwnProperty(p)) {
+	      if(p === "time") {
+	      	newObj.input[p] = data[i][p];
+	      }
+	      else {
+	      	newObj.output[p] = data[i][p];
+	      }
+	    }
+	  }
 		newData.push(newObj);
 	}
 

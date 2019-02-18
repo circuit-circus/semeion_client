@@ -262,9 +262,8 @@ function settingsToI2C(sett) {
 
 function I2CToSettings(sett) {
   let newSettings = {
-    "climaxThreshold": sett[1] / 255,
-    "deactiveThreshold": sett[2] / 255,
-    "reactionThreshold": sett[3] / 255,
+    "baseHue": sett[1] / 255,
+    "baseSat": sett[2] / 255,
     "time": sett[4] / 255
   };
   return newSettings;
