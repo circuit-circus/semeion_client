@@ -11,38 +11,29 @@ var isLooping = false;
 var isFadingLoop = false;
 
 socket.on('state', function(data){
-	var state = data[0];
-	prox = data[1];
 	console.log(data);
+	var state = establishState(data);
+	console.log(state);
 
 	switch (state) {
-	  // Dark
-	  case 'DARK':
-	    playOneShot('k', 0, 11);
-	    break;
-	  // Idle
-	  case 'IDLE':
-	    playOneShot('d', 0, 1);
-	    break;
-	  // Interact
-	  case 'INTERACT':
-	    let audioId = Math.floor(mapNumber(prox, 0, 15, 0, 4));
-	    isOneShotPlaying = false;
-	    playOneShot('be', audioId, audioId);
-	    break;
-	  // Climax
 	  case 'CLIMAX':
-	    if(myState != 'CLIMAX') {
-	     	isOneShotPlaying = false;
-	      playOneShot('n', 0, 0);
-	    }
+     	isOneShotPlaying = false;
+      playOneShot('climax/climax_', 0, 0);
 	    break;
-	  // Shock
-	  case 'SHOCK':
-	    if(myState != 'SHOCK') {
-	      isOneShotPlaying = false;
-	      playOneShot('d', 4, 4);
-	    }
+	  case 'REACTING-0':
+     	isOneShotPlaying = false;
+      playOneShot('reacting/reacting_', 0, 0, 1);
+	  case 'REACTING-1':
+     	isOneShotPlaying = false;
+      playOneShot('reacting/reacting_', 0, 0, -1);
+	    break;
+	  case 'ACTIVE-0':
+     	isOneShotPlaying = false;
+      playOneShot('active/active_', 0, 0, 1);
+	    break;
+	  case 'ACTIVE-1':
+     	isOneShotPlaying = false;
+      playOneShot('active/active_', 0, 0, -1);
 	    break;
 	  default:
 	    break;
@@ -51,17 +42,19 @@ socket.on('state', function(data){
   myState = state !== myState ? state : myState;
 });
 
-function playSound(filePrefix, fileNumMin, fileNumMax, shouldLoop) {
+function playSound(filePrefix, fileNumMin, fileNumMax, shouldLoop, side) {
   return new Promise(function(resolve, reject) {
     let fileName = filePrefix;
     fileName += fileNumMin === fileNumMax ? fileNumMin : getRandomInt(fileNumMin, fileNumMax);
-    fileName += '.mp3';
+    fileName += '.wav';
+    console.log('/sfx/' + fileName);
     if(shouldLoop) {
       loopedAudio = new Howl({
 				src: ['/sfx/' + fileName],
 				autoplay: true,
 				loop: true,
 				volume: 1.0,
+				stereo: side,
 				onend: function() {
 				resolve('Successfully played ' + fileName);
 				},
@@ -80,6 +73,7 @@ function playSound(filePrefix, fileNumMin, fileNumMax, shouldLoop) {
       	src: ['/sfx/' + fileName],
 			  autoplay: true,
 			  volume: 1.0,
+			  stereo: side,
 			  onend: function() {
 			    resolve('Successfully played ' + fileName);
 			 	},
@@ -111,10 +105,10 @@ function stopLoop() {
   }
 }
 
-function playOneShot(filePrefix, fileNumMin, fileNumMax) {
+function playOneShot(filePrefix, fileNumMin, fileNumMax, side) {
   if(!isOneShotPlaying) {
     isOneShotPlaying = true;
-    playSound(filePrefix, fileNumMin, fileNumMax, false).then(function(msg) {
+    playSound(filePrefix, fileNumMin, fileNumMax, false, side).then(function(msg) {
       console.log(msg);
       isOneShotPlaying = false;
     })
@@ -123,6 +117,20 @@ function playOneShot(filePrefix, fileNumMin, fileNumMax) {
       isOneShotPlaying = false;
     });
   }
+}
+
+function establishState(arr) {
+	let theState = '';
+	for(let i = 0; i < arr.length; i++) {
+		if(i === 1) theState = arr[i] ? 'CLIMAX' : '';
+		if(i === 2) theState = arr[i] ? 'ACTIVE-0' : '';
+		if(i === 3) theState = arr[i] ? 'ACTIVE-1' : '';
+		if(i === 4) theState = arr[i] ? 'REACTING-0' : '';
+		if(i === 5) theState = arr[i] ? 'REACTING-1' : '';
+
+		if(theState !== '') return theState;
+	}
+	return theState;
 }
 
 // Max is inclusive

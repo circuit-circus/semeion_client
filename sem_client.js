@@ -53,6 +53,8 @@ lookupServerIp().then(function(serverIp) {
       switch(topic) {
         case 'sem_client/other_climax':
           return handleOtherClimax(message);
+        case 'sem_client/other_state':
+          return handleOtherState(message);
       }
       console.log('No handler for topic %s', topic);
     });
@@ -106,7 +108,7 @@ function lookupServerIp() {
  */
 function getSettings() {
   if(shouldUseI2C === '1') {
-    i2c.i2cRead(5, 98).then(function(msg) {
+    i2c.i2cRead(6, 98).then(function(msg) {
       // Convert the received buffer to an array
       let unoMsg = JSON.parse(msg);
       console.log(unoMsg);
@@ -133,8 +135,8 @@ function trainBrain() {
     ml.startTraining().then(function(msg) {
       let newSettings = ml.runNet();
       let i2cSettings = settingsToI2C(newSettings);
-      console.log(i2cSettings);
-      writeThisToI2C(0, 97, i2cSettings);
+      // console.log(i2cSettings);
+      writeThisToI2C(0, 95, i2cSettings);
       trainingBrain = false;
     }).catch(function(err) {
       console.log(err);
@@ -148,21 +150,19 @@ function trainBrain() {
  */
 function checkClimaxUpdate() {
   if(shouldUseI2C === '1') {
-    i2c.i2cRead(5, 99).then(function(msg) {
+    i2c.i2cRead(6, 99).then(function(msg) {
       // Convert the received buffer to an array
       let unoMsg = JSON.parse(msg);
 
       // The first index is a test
-      // The second index is the climax state
-      if(unoMsg[0] === 120 && unoMsg[1] === 1) {
-        isClimaxing = true;
-      }
- 
-      if(isClimaxing) {
+      if(unoMsg[0] === 120) {
+        // The second index is the climax state
+        isClimaxing = unoMsg[1] === 1 ? true : false;
+
         // Transmit state and data to the browser
-        io.emit('climax', isClimaxing);
+        io.emit('state', unoMsg);
         // Transmit the climax to everyone
-        sendClimaxUpdate(isClimaxing);
+        if(isClimaxing) sendClimaxUpdate(isClimaxing);
       }
     })
     .catch(function(error) {
@@ -182,15 +182,44 @@ function sendClimaxUpdate() {
 }
 
 /**
+ * Sends out the state via MQTT
+ */
+function sendStateUpdate(msg) {
+  var dataToSend = JSON.stringify({clientInfo: mqtt_service.myInfo, clientState: JSON.stringify(msg)});
+  if(mqtt_service.client !== undefined) {
+    mqtt_service.client.publish('sem_client/state', dataToSend);
+  }
+}
+
+/**
  * When other Sems climax, we receive it here. If this sem is not already climaxing, we attempt to write it to the Arduino a couple of times. 
  * @param  {[type]} message 
  */
 function handleOtherClimax(message) {
-    io.emit('climax', message);
+    // io.emit('state', message);
+    console.log('Should we write to i2c climax? ' + isClimaxing);
     if(shouldUseI2C === '1' && !isClimaxing) {
-      writeThisToI2C(1, 98, [0]);
+      writeThisToI2C(1, 96, [0]);
     }
     isClimaxing = false;
+}
+
+/**
+ * When other change state, we receive it here. Is useful for debugging, but should not be in the final version.
+ * @param  {[type]} message
+ */
+function handleOtherState(message) {
+    try {
+      // We get a buffer, so we need to convert it to a string before we parse it
+      message = JSON.parse(message.toString('utf8'));
+    } catch(err) {
+      console.log(err);
+    };
+    console.log(message);
+    io.emit('state', message);
+    if(message[1]) {
+      handleOtherClimax(message);
+    }
 }
 
 function writeThisToI2C(data, offset, sett) {
@@ -240,9 +269,31 @@ function I2CToSettings(sett) {
 // Commandline string interface for testing
 stdin.addListener('data', function(d) {
   let string = d.toString().trim();
+  let msg = [120, false, false, false, false, false];
   if(string === 'climax') {
-    isClimaxing = true;
-    sendClimaxUpdate(isClimaxing);
+    msg[1] = true;
+    io.emit('state', msg);
+    sendStateUpdate(msg);
+  }
+  else if(string === 'active0') {
+    msg[2] = true;
+    io.emit('state', msg);
+    sendStateUpdate(msg);
+  }
+  else if(string === 'active1') {
+    msg[3] = true;
+    io.emit('state', msg);
+    sendStateUpdate(msg);
+  }
+  else if(string === 'reacting0') {
+    msg[4] = true;
+    io.emit('state', msg);
+    sendStateUpdate(msg);
+  }
+  else if(string === 'reacting1') {
+    msg[5] = true;
+    io.emit('state', msg);
+    sendStateUpdate(msg);
   }
 });
 

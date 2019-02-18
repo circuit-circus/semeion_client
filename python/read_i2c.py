@@ -1,6 +1,6 @@
 import sys
 from time import sleep
-from smbus2 import SMBusWrapper
+from lib.smbus2 import SMBusWrapper
 i2caddress = 0x08
 
 # Get arguments from whatever is calling this script
