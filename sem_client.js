@@ -20,10 +20,10 @@ let server = require('http').createServer(app);
 var io = require('socket.io')(server);
 
 let checkClimaxInterval;
-const checkClimaxIntervalTime = 1000;
+const checkClimaxIntervalTime = 750;
 let isClimaxing = false;
 
-const i2cWriteRetriesMax = 3;
+const i2cWriteRetriesMax = 10;
 let i2cWriteRetries = 0;
 
 let getSettingsInterval;
@@ -49,7 +49,7 @@ lookupServerIp().then(function(serverIp) {
     console.log('Created mqtt client!');
 
     mqtt_service.client.on('message', (topic, message) => {
-      console.log('received message %s %s', topic, message);
+      // console.log('received message %s %s', topic, message);
       switch(topic) {
         case 'sem_client/other_climax':
           return handleOtherClimax(message);
@@ -111,7 +111,7 @@ function getSettings() {
     i2c.i2cRead(6, 98).then(function(msg) {
       // Convert the received buffer to an array
       let unoMsg = JSON.parse(msg);
-      console.log(unoMsg);
+      // console.log(unoMsg);
 
       // The first index is the climax state
       if(unoMsg[0] === 120) {
@@ -124,7 +124,10 @@ function getSettings() {
       }
     })
     .catch(function(error) {
-      console.log(error.message);
+      // These errors are common, so no need to print
+      if(!error.message.includes('OSError')) {
+        console.log(error.message);
+      }
     });
   }
 }
@@ -135,7 +138,7 @@ function trainBrain() {
     ml.startTraining().then(function(msg) {
       let newSettings = ml.runNet();
       let i2cSettings = settingsToI2C(newSettings);
-      // console.log(i2cSettings);
+      console.log("Our new settings are: " + i2cSettings);
       writeThisToI2C(0, 95, i2cSettings);
       trainingBrain = false;
     }).catch(function(err) {
@@ -166,7 +169,10 @@ function checkClimaxUpdate() {
       }
     })
     .catch(function(error) {
-      console.log(error.message);
+      // These errors are common, so no need to print
+      if(!error.message.includes('OSError')) {
+        console.log(error.message);
+      }
     });
   }
 }
@@ -197,7 +203,6 @@ function sendStateUpdate(msg) {
  */
 function handleOtherClimax(message) {
     // io.emit('state', message);
-    console.log('Should we write to i2c climax? ' + isClimaxing);
     if(shouldUseI2C === '1' && !isClimaxing) {
       writeThisToI2C(1, 96, [0]);
     }
@@ -215,7 +220,6 @@ function handleOtherState(message) {
     } catch(err) {
       console.log(err);
     };
-    console.log(message);
     io.emit('state', message);
     if(message[1]) {
       handleOtherClimax(message);
@@ -224,7 +228,7 @@ function handleOtherState(message) {
 
 function writeThisToI2C(data, offset, sett) {
   i2c.i2cWrite(data, offset, sett).then(function(msg) {
-    console.log(msg.toString('utf8'));
+    // console.log(msg.toString('utf8'));
   })
   .catch(function(error) {
     console.log(error.message);
@@ -233,7 +237,7 @@ function writeThisToI2C(data, offset, sett) {
     // Only retry if we haven't exceeded the max
     if(i2cWriteRetries < i2cWriteRetriesMax) {
       // Wait some time, then try again
-      setTimeout(function() {writeThisToI2C(data, offset)}, 250);
+      setTimeout(function() {writeThisToI2C(data, offset, sett)}, 300);
     }
     else {
       // Reset retries amount
