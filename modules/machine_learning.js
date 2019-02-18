@@ -137,16 +137,18 @@ function runNet() {
  */
 function trainNet() {
 	return new Promise(function(resolve, reject) {
-		net.train(parsedTrainingData, trainConfig);
-
-		fs.writeFile(brainLoc, JSON.stringify(net.toJSON()), (err) => {
-			if(err) {
-				console.error(err);
-				resolve('Brain wasn\'t saved. Check error message');
-			}
-			else {
-				resolve('Brain was saved.');
-			}
+		net.trainAsync(parsedTrainingData, trainConfig).then(function(res) {
+			fs.writeFile(brainLoc, JSON.stringify(net.toJSON()), (err) => {
+				if(err) {
+					console.error(err);
+					resolve('Brain wasn\'t saved. Check error message');
+				}
+				else {
+					resolve('Brain was saved.');
+				}
+			});
+		}).catch(function(error) {
+			reject(error);
 		});
 	})
 }
