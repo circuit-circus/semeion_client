@@ -12,14 +12,49 @@ var trainingData = [], parsedTrainingData;
 const trainConfig = {
 	// log : details => console.log(details), // Uncomment this line, if you want to get updates on the training
 	errorThresh : 0.01, // Stop training, if we reach an error rate of this much
-	learningRate : 0.1, // Higher rate means faster learning, but less accurate and more error prone
+	learningRate : 0.99999, // Higher rate means faster learning, but less accurate and more error prone
 	iterations : 5000, // Stop training, if we go through this many iterations
-	timeout : 15000 // Stop training after this amount of milliseconds
+	timeout : 200, // Stop training after this amount of milliseconds
+	momentum: 0.5
 };
 
 const netConfig = {
-    hiddenLayers : [5, 10, 5] // How many hidden layers do we want? These are overwritten by an old brain, if it's read
+    hiddenLayers : [5, 10, 5], // How many hidden layers do we want? These are overwritten by an old brain, if it's read
+    activation : "tanh"
 };
+
+let isDebugging = true;
+let myHue = 0.5, mySat = 0.5;
+if(isDebugging) {
+	console.log('____________________');
+	console.log('\n');
+	console.log('ISDEBUGGING IS TRUE!');
+	console.log('\n');
+	console.log('¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯');
+	setInterval(() => {
+		startTraining().then((res) => {
+			console.log(res);
+			let result = runNet();
+			let hueMultiplier = result.baseHue < myHue ? -1 : 1;
+			let satMultiplier = result.baseSat < mySat ? -1 : 1;
+			console.log(result);
+
+			myHue += (Math.random() * hueMultiplier) / 255;
+			mySat += (Math.random() * satMultiplier) / 255;
+			console.log("Hue: " + (myHue * 255) + " / Sat: " + (mySat * 255));
+
+			let legibleResult = result;
+			legibleResult.baseHue *= 255;
+			legibleResult.baseSat *= 255;
+			console.log(legibleResult);
+
+			trainingData.push(result);
+			console.log(trainingData.length);
+		}).catch((err) => {
+			console.error(err);
+		})
+	}, 250);
+}
 
 // Setup a new neural network
 const net = new brain.NeuralNetwork(netConfig);
@@ -33,7 +68,6 @@ function readDataAndTrain() {
 		readSettings().then(function(res) {
 			// Read a saved brain if we have it
 			readJSONFile(brainLoc).then(function(brainJSON) {
-
 				// We have read the brain file, so let's load it into the network
 				net.fromJSON(brainJSON);
 
@@ -46,14 +80,12 @@ function readDataAndTrain() {
 					reject(err);
 				});
 			}).catch(function(err) {
-
 				console.error(err);
 				// Train a new brain, since we didn't find one
 				trainNet().then(function(dat) {
 					console.log(dat);
 					resolve('Done with training from a new brain');
 				}).catch(function(err) {
-					console.error(err);
 					reject(err);
 				});
 			});
@@ -66,7 +98,7 @@ function readDataAndTrain() {
 function startTraining() {
 	console.log('Starting to train brain.');
 	return new Promise(function(resolve, reject) {
-		if(trainingData.length === 1) {
+		if(trainingData.length <= 1) {
 			readDataAndTrain().then(function(res) {
 				resolve(res);
 			}).catch(function(err) {
@@ -170,7 +202,7 @@ function readJSONFile(loc) {
 					resolve(data);
 				}
 				catch(e) {
-					reject(e);
+					reject(e.message + ' at loc ' + loc);
 				}
 			}
 		});

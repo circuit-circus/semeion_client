@@ -138,7 +138,7 @@ function trainBrain() {
     ml.startTraining().then(function(msg) {
       let newSettings = ml.runNet();
       let i2cSettings = settingsToI2C(newSettings);
-      console.log("Our new settings are: " + i2cSettings);
+      console.log(new Date().toTimeString() + ": Our new settings are: " + i2cSettings);
       writeThisToI2C(0, 95, i2cSettings);
       trainingBrain = false;
     }).catch(function(err) {
