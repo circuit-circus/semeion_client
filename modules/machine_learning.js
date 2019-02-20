@@ -10,21 +10,20 @@ var trainingData = [], parsedTrainingData;
 
 // Our configurations for the training part of the network
 const trainConfig = {
-	// log : details => console.log(details), // Uncomment this line, if you want to get updates on the training
+	log : details => console.log(details), // Uncomment this line, if you want to get updates on the training
 	errorThresh : 0.01, // Stop training, if we reach an error rate of this much
-	learningRate : 0.99999, // Higher rate means faster learning, but less accurate and more error prone
+	learningRate : 0.1, // Higher rate means faster learning, but less accurate and more error prone
 	iterations : 5000, // Stop training, if we go through this many iterations
-	timeout : 200, // Stop training after this amount of milliseconds
-	momentum: 0.5
+	timeout : 100, // Stop training after this amount of milliseconds
+	momentum: 0.1
 };
 
 const netConfig = {
-    hiddenLayers : [5, 10, 5], // How many hidden layers do we want? These are overwritten by an old brain, if it's read
+    hiddenLayers : [255, 127, 63], // How many hidden layers do we want? These are overwritten by an old brain, if it's read
     activation : "tanh"
 };
 
 let isDebugging = true;
-let myHue = 0.5, mySat = 0.5;
 if(isDebugging) {
 	console.log('____________________');
 	console.log('\n');
@@ -33,27 +32,48 @@ if(isDebugging) {
 	console.log('¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯');
 	setInterval(() => {
 		startTraining().then((res) => {
-			console.log(res);
-			let result = runNet();
-			let hueMultiplier = result.baseHue < myHue ? -1 : 1;
-			let satMultiplier = result.baseSat < mySat ? -1 : 1;
+			// console.log(res);
+			let theSettings = {
+				"baseHue" : Math.random(),
+				"baseSat" : Math.random()
+			};
+			let result = runNetWithSettings(theSettings);
+			console.log('Start result: ');
+			console.log(theSettings);
+			console.log(result);
+			for(let i = 0; i < 100; i++) {
+				theSettings = {
+					"baseHue" : Math.random(),
+					"baseSat" : Math.random()
+				};
+				let newResult = runNetWithSettings(theSettings);
+				if(result.time < newResult.time) {
+					result = JSON.parse(JSON.stringify(newResult));
+				}
+			}
+			console.log('End result: ');
+			console.log(theSettings);
 			console.log(result);
 
-			myHue += (Math.random() * hueMultiplier) / 255;
-			mySat += (Math.random() * satMultiplier) / 255;
-			console.log("Hue: " + (myHue * 255) + " / Sat: " + (mySat * 255));
-
-			let legibleResult = result;
+			let legibleResult = theSettings;
+			legibleResult.time = result.time;
 			legibleResult.baseHue *= 255;
 			legibleResult.baseSat *= 255;
+			console.log('Legible result: ');
 			console.log(legibleResult);
 
 			trainingData.push(result);
-			console.log(trainingData.length);
+			if(trainingData.length % 60 === 0) {
+				console.log('____________________');
+				console.log('\n');
+				console.log((trainingData.length / 60) + ' hours of simulation done. ');
+				console.log('\n');
+				console.log('¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯');
+			}
 		}).catch((err) => {
 			console.error(err);
 		})
-	}, 250);
+	}, trainConfig.timeout * 1.5);
 }
 
 // Setup a new neural network
@@ -163,6 +183,26 @@ function runNet() {
 	return output;
 }
 
+function runNetWithSettings(sett) {
+	var time = 1.0;
+	let settings = {};
+
+	// Go through all properties and parse them accordingly as input or output
+	for(var p in sett) {
+    if(sett.hasOwnProperty(p)) {
+      if(p !== "time") {
+      	settings[p] = sett[p];
+      }
+      else {
+      	settings[p] = sett[p];
+      }
+    }
+  }
+
+	var output = net.run(settings);
+	return output;
+}
+
 /**
  * Trains the neural network and saves the neural network to a JSON file
  * @return {Promise} A Promise that resolves no matter if the brain is saved or not.
@@ -246,7 +286,7 @@ function parseData(data) {
 		// Go through all properties and parse them accordingly as input or output
 		for(var p in data[i]) {
 	    if(data[i].hasOwnProperty(p)) {
-	      if(p === "time") {
+	      if(p !== "time") {
 	      	newObj.input[p] = data[i][p];
 	      }
 	      else {
