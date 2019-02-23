@@ -1,6 +1,7 @@
 // Includes
 const brain = require('brain.js');
 const fs = require('fs');
+var plot = require('plotter').plot;
 
 // Where do we keep our training data and old brains?
 var trainLoc = __dirname + '/../brain_data/data.json';
@@ -14,7 +15,7 @@ const trainConfig = {
 	errorThresh : 0.01, // Stop training, if we reach an error rate of this much
 	learningRate : 0.99999, // Higher rate means faster learning, but less accurate and more error prone
 	iterations : 5000, // Stop training, if we go through this many iterations
-	timeout : 200, // Stop training after this amount of milliseconds
+	timeout : 100, // Stop training after this amount of milliseconds
 	momentum: 0.5
 };
 
@@ -33,27 +34,59 @@ if(isDebugging) {
 	console.log('¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯');
 	setInterval(() => {
 		startTraining().then((res) => {
-			console.log(res);
+			// console.log(res);
 			let result = runNet();
 			let hueMultiplier = result.baseHue < myHue ? -1 : 1;
 			let satMultiplier = result.baseSat < mySat ? -1 : 1;
-			console.log(result);
+			// console.log(result);
 
 			myHue += (Math.random() * hueMultiplier) / 255;
 			mySat += (Math.random() * satMultiplier) / 255;
-			console.log("Hue: " + (myHue * 255) + " / Sat: " + (mySat * 255));
+			// console.log("Hue: " + (myHue * 255) + " / Sat: " + (mySat * 255));
 
-			let legibleResult = result;
+			let legibleResult = JSON.parse(JSON.stringify(result));
 			legibleResult.baseHue *= 255;
 			legibleResult.baseSat *= 255;
-			console.log(legibleResult);
+			// console.log(legibleResult);
 
 			trainingData.push(result);
-			console.log(trainingData.length);
+			// console.log(trainingData.length);
+
+			process.stdout.clearLine();
+			process.stdout.write("We trained " + trainingData.length + " times.");
+			process.stdout.cursorTo(0);
+
+			if(trainingData.length % 30 === 0) {
+				console.log('____________________________________________________________');
+				console.log('\n');
+				console.log((trainingData.length / 60) + ' hours of simulation done. I. e. ' + (trainingData.length / 3360) + ' x SXSW.');
+				console.log('\n');
+				console.log('¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯');
+
+				let plotDataHue = [], plotDataSat = [];
+				for(let i = 0; i < trainingData.length; i++) {
+					plotDataHue.push(trainingData[i].baseHue * 255);
+					plotDataSat.push(trainingData[i].baseSat * 255);
+				}
+				
+				try {
+					plot({
+						data:		{ 
+							'Hue' : plotDataHue,
+							'Sat' : plotDataSat
+						},
+						filename:	'output.pdf',
+						format:		'pdf'
+					});
+				} catch(err) {
+					console.log("Plotly error: " + err);
+				}
+				
+			}
 		}).catch((err) => {
 			console.error(err);
 		})
-	}, 250);
+	}, trainConfig.timeout * 1.5);
 }
 
 // Setup a new neural network
@@ -96,7 +129,7 @@ function readDataAndTrain() {
 }
 
 function startTraining() {
-	console.log('Starting to train brain.');
+	// console.log('Starting to train brain.');
 	return new Promise(function(resolve, reject) {
 		if(trainingData.length <= 1) {
 			readDataAndTrain().then(function(res) {
