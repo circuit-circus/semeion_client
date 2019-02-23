@@ -108,7 +108,7 @@ function lookupServerIp() {
  */
 function getSettings() {
   if(shouldUseI2C === '1') {
-    i2c.i2cRead(6, 98).then(function(msg) {
+    i2c.i2cRead(8, 98).then(function(msg) {
       // Convert the received buffer to an array
       let unoMsg = JSON.parse(msg);
       // console.log(unoMsg);
@@ -153,7 +153,7 @@ function trainBrain() {
  */
 function checkClimaxUpdate() {
   if(shouldUseI2C === '1') {
-    i2c.i2cRead(6, 99).then(function(msg) {
+    i2c.i2cRead(8, 99).then(function(msg) {
       // Convert the received buffer to an array
       let unoMsg = JSON.parse(msg);
 
