@@ -1,6 +1,8 @@
 // Includes
 const brain = require('brain.js');
 const fs = require('fs');
+const utility = require('./utility');
+var plotly = require('plotly')('jepsterdk', 'C6FSOTsMjaL9ZwpzJuts');
 
 // Where do we keep our training data and old brains?
 var trainLoc = __dirname + '/../brain_data/data.json';
@@ -11,7 +13,7 @@ var trainingData = [], parsedTrainingData;
 // Our configurations for the training part of the network
 const trainConfig = {
 	log : details => console.log(details), // Uncomment this line, if you want to get updates on the training
-	errorThresh : 0.01, // Stop training, if we reach an error rate of this much
+	errorThresh : 0.0001, // Stop training, if we reach an error rate of this much
 	learningRate : 0.1, // Higher rate means faster learning, but less accurate and more error prone
 	iterations : 5000, // Stop training, if we go through this many iterations
 	timeout : 100, // Stop training after this amount of milliseconds
@@ -19,11 +21,16 @@ const trainConfig = {
 };
 
 const netConfig = {
-    hiddenLayers : [255, 127, 63], // How many hidden layers do we want? These are overwritten by an old brain, if it's read
+    hiddenLayers : [5, 10, 5], // How many hidden layers do we want? These are overwritten by an old brain, if it's read
     activation : "tanh"
 };
 
 let isDebugging = true;
+let theSettings = {
+	"baseHue" : Math.random(),
+	"baseSat" : Math.random()
+};
+let x = utility.getRandomInt(0, 100), y = utility.getRandomInt(100, 200);
 if(isDebugging) {
 	console.log('____________________');
 	console.log('\n');
@@ -33,15 +40,27 @@ if(isDebugging) {
 	setInterval(() => {
 		startTraining().then((res) => {
 			// console.log(res);
-			let theSettings = {
-				"baseHue" : Math.random(),
-				"baseSat" : Math.random()
-			};
 			let result = runNetWithSettings(theSettings);
-			console.log('Start result: ');
-			console.log(theSettings);
-			console.log(result);
-			for(let i = 0; i < 100; i++) {
+			// console.log('----------------------------');
+			// console.log('Start result: ');
+			// console.log(theSettings);
+			// console.log(result);
+
+			let noise = utility.noise(x, y, 0.8);
+
+			for(var p in theSettings) {
+		    if(theSettings.hasOwnProperty(p)) {
+		    	let direction = noise === 0.5 ? 0 : noise > 0.5 ? 1 : -1;
+		    	noise = utility.noise(x, 100 + y, 0.8);
+		    	let newSett = theSettings[p] + (Math.random() * (1 - result.time) * direction / 30);
+		    	newSett = Math.min(Math.max(newSett, 0), 1);
+		      theSettings[p] = newSett;
+		    }
+		  }
+
+		  // console.log("Noise: " + noise + " of x " + x + ", and y " + y);
+
+			/*for(let i = 0; i < 100; i++) {
 				theSettings = {
 					"baseHue" : Math.random(),
 					"baseSat" : Math.random()
@@ -50,26 +69,72 @@ if(isDebugging) {
 				if(result.time < newResult.time) {
 					result = JSON.parse(JSON.stringify(newResult));
 				}
-			}
-			console.log('End result: ');
-			console.log(theSettings);
-			console.log(result);
+			}*/
 
-			let legibleResult = theSettings;
+			// console.log('End result: ');
+			// console.log(theSettings);
+			// console.log(result);
+
+			let legibleResult = JSON.parse(JSON.stringify(theSettings));
 			legibleResult.time = result.time;
 			legibleResult.baseHue *= 255;
 			legibleResult.baseSat *= 255;
-			console.log('Legible result: ');
-			console.log(legibleResult);
+			// console.log('Legible result: ');
+			// console.log(legibleResult);
 
-			trainingData.push(result);
-			if(trainingData.length % 60 === 0) {
-				console.log('____________________');
+			let dataResult = JSON.parse(JSON.stringify(theSettings));
+			noise = utility.noise(x, 1000 + y, 0.8);
+			dataResult.time = noise;
+			dataResult.baseHue = theSettings.baseHue;
+			dataResult.baseSat = theSettings.baseSat;
+			// console.log('Data result: ');
+			// console.log(dataResult);
+
+			trainingData.push(dataResult);
+
+			process.stdout.clearLine();
+			process.stdout.write("We trained " + trainingData.length + " times.");
+			process.stdout.cursorTo(0);
+
+			if(trainingData.length % 3360 === 0) {
+				console.log('____________________________________________________________');
 				console.log('\n');
-				console.log((trainingData.length / 60) + ' hours of simulation done. ');
+				console.log((trainingData.length / 60) + ' hours of simulation done. I. e. ' + (trainingData.length / 3360) + ' x SXSW.');
 				console.log('\n');
-				console.log('¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯');
+				console.log('¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯');
+
+				let plotYData = [], plotXData = [];
+				for(let i = 0; i < trainingData.length; i++) {
+					plotXData.push(i);
+					plotYData.push(parseFloat(trainingData[i].baseHue) * 255);
+
+					if(i > trainingData.length - 10) console.log(plotYData[i]);
+				}
+				
+				var graphOptions = {filename: "ML_development", fileopt: "overwrite"};
+				try {
+					plotly.plot([{
+						x : plotXData,
+						y : plotYData,
+						type : "scatter"
+					}], graphOptions, function (err, msg) {
+					    if(err) {
+					    	throw err;
+					    }
+					    else {
+					    	console.log("Plotly message: ");
+					    	console.log(msg);
+					    }
+					});
+				} catch(err) {
+					console.log("Plotly error: " + err);
+				}
+				
 			}
+			// console.log('----------------------------');
+
+			x += 1;
+			y += 10;
 		}).catch((err) => {
 			console.error(err);
 		})
@@ -115,8 +180,10 @@ function readDataAndTrain() {
 	})
 }
 
+let startDate = new Date().toTimeString();
 function startTraining() {
-	console.log('Starting to train brain.');
+	// console.log('Started to train brain at ' + startDate);
+	
 	return new Promise(function(resolve, reject) {
 		if(trainingData.length <= 1) {
 			readDataAndTrain().then(function(res) {

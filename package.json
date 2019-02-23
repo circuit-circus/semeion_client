@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "asciichart": "^1.5.7",
     "brain.js": "^1.6.1",
     "dns": "^0.2.2",
     "express": "^4.16.4",
@@ -16,6 +17,7 @@
     "howler": "^2.0.15",
     "mqtt": "^2.18.8",
     "nodemon": "^1.18.7",
+    "plotly": "^1.0.6",
     "socket.io": "^2.1.1",
     "ws": "^6.1.0"
   }
