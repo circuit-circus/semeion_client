@@ -1,7 +1,10 @@
 // Includes
 const brain = require('brain.js');
 const fs = require('fs');
+const utility = require('./utility');
+let stdin = process.openStdin();
 var plot = require('plotter').plot;
+const noise = require('noisejs');
 
 // Where do we keep our training data and old brains?
 var trainLoc = __dirname + '/../brain_data/data.json';
@@ -12,45 +15,74 @@ var trainingData = [], parsedTrainingData;
 // Our configurations for the training part of the network
 const trainConfig = {
 	// log : details => console.log(details), // Uncomment this line, if you want to get updates on the training
-	errorThresh : 0.01, // Stop training, if we reach an error rate of this much
-	learningRate : 0.99999, // Higher rate means faster learning, but less accurate and more error prone
+	// logPeriod : 100,
+	errorThresh : 0.0001, // Stop training, if we reach an error rate of this much
+	learningRate : 0.001, // Higher rate means faster learning, but less accurate and more error prone
 	iterations : 5000, // Stop training, if we go through this many iterations
-	timeout : 100, // Stop training after this amount of milliseconds
-	momentum: 0.5
+	timeout : 300, // Stop training after this amount of milliseconds
+	momentum: 0.1
 };
 
 const netConfig = {
-    hiddenLayers : [5, 10, 5], // How many hidden layers do we want? These are overwritten by an old brain, if it's read
-    activation : "tanh"
+    hiddenLayers : [3], // How many hidden layers do we want? These are overwritten by an old brain, if it's read
+    activation : "leaky-relu"
 };
 
 let isDebugging = true;
-let myHue = 0.5, mySat = 0.5;
+let theSettings = {
+	"baseHue" : 0.5,
+	"baseSat" : 0.5
+};
+let noiseSeed = 6705;
+let noiseGen = new noise.Noise(noiseSeed);
+let x = Math.random(), y = Math.random();
+let plotTimeData = [];
 if(isDebugging) {
 	console.log('____________________');
 	console.log('\n');
 	console.log('ISDEBUGGING IS TRUE!');
 	console.log('\n');
 	console.log('¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯');
+
+	fs.writeFileSync(brainLoc, "", (err) => {
+		if(err) {
+			console.error(err);
+			resolve('Brain wasn\'t saved. Check error message');
+		}
+		else {
+			resolve('Brain was saved.');
+		}
+	});
 	setInterval(() => {
 		startTraining().then((res) => {
-			// console.log(res);
-			let result = runNet();
-			let hueMultiplier = result.baseHue < myHue ? -1 : 1;
-			let satMultiplier = result.baseSat < mySat ? -1 : 1;
-			// console.log(result);
+			let result = runNetWithSettings(theSettings);
 
-			myHue += (Math.random() * hueMultiplier) / 255;
-			mySat += (Math.random() * satMultiplier) / 255;
-			// console.log("Hue: " + (myHue * 255) + " / Sat: " + (mySat * 255));
+			let theNoise, counter = 1;
 
-			let legibleResult = JSON.parse(JSON.stringify(result));
+			for(var p in theSettings) {
+		    if(theSettings.hasOwnProperty(p)) {
+		    	theNoise = noiseGen.perlin2(x, 100 + y * counter);
+		    	let newSett = theSettings[p] + ((1 - result.time) * theNoise);
+		    	newSett = Math.min(Math.max(newSett, 0), 1);
+		      theSettings[p] = newSett;
+		      counter++;
+		    }
+		  }
+
+			let legibleResult = JSON.parse(JSON.stringify(theSettings));
+			legibleResult.time = result.time;
 			legibleResult.baseHue *= 255;
 			legibleResult.baseSat *= 255;
-			// console.log(legibleResult);
+			 
+			plotTimeData.push(result.time);
 
-			trainingData.push(result);
-			// console.log(trainingData.length);
+			let dataResult = JSON.parse(JSON.stringify(theSettings));
+			theNoise = noiseGen.perlin2(x, 1000 + y);
+			dataResult.time = Math.random();
+			dataResult.baseHue = theSettings.baseHue;
+			dataResult.baseSat = theSettings.baseSat;
+
+			trainingData.push(dataResult);
 
 			process.stdout.clearLine();
 			process.stdout.write("We trained " + trainingData.length + " times.");
@@ -63,30 +95,36 @@ if(isDebugging) {
 				console.log('\n');
 				console.log('¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯');
 
-				let plotDataHue = [], plotDataSat = [];
+				let plotHueData = [], plotSatData = [];
 				for(let i = 0; i < trainingData.length; i++) {
-					plotDataHue.push(trainingData[i].baseHue * 255);
-					plotDataSat.push(trainingData[i].baseSat * 255);
+					plotHueData.push(parseFloat(trainingData[i].baseHue));
+					plotSatData.push(parseFloat(trainingData[i].baseSat));
 				}
-				
+				console.log("Saving to: " + trainConfig.learningRate + '-' + netConfig.hiddenLayers.toString() + '-' + netConfig.activation);
 				try {
 					plot({
-						data:		{ 
-							'Hue' : plotDataHue,
-							'Sat' : plotDataSat
+						data:           { 
+							'Hue' : plotHueData,
+							'Sat' : plotSatData,
+							'Time' : plotTimeData
 						},
-						filename:	'output.pdf',
-						format:		'pdf'
+						filename: 'ml_analysis/' + trainConfig.learningRate + '-' + netConfig.hiddenLayers.toString() + '-' + netConfig.activation + '/' + noiseSeed +'.pdf',
+						format: 'pdf',
+						xlabel: 'Iterations',
+						title: 'S: ' + noiseSeed + ',  TO: ' + trainConfig.timeout + ', LR: ' + trainConfig.learningRate + ', HL: ' + netConfig.hiddenLayers.toString() + ', AC: ' + netConfig.activation
 					});
 				} catch(err) {
-					console.log("Plotly error: " + err);
+					console.log("Plot error: " + err);
 				}
 				
 			}
+
+			x += 1;
+			y += 10;
 		}).catch((err) => {
 			console.error(err);
 		})
-	}, trainConfig.timeout * 1.5);
+	}, trainConfig.timeout * 1.1);
 }
 
 // Setup a new neural network
@@ -128,8 +166,10 @@ function readDataAndTrain() {
 	})
 }
 
+let startDate = new Date().toTimeString();
 function startTraining() {
-	// console.log('Starting to train brain.');
+	// console.log('Started to train brain at ' + startDate);
+	
 	return new Promise(function(resolve, reject) {
 		if(trainingData.length <= 1) {
 			readDataAndTrain().then(function(res) {
@@ -193,6 +233,26 @@ function readSettings() {
 function runNet() {
 	var time = 1.0;
 	var output = net.run({"time" : time});
+	return output;
+}
+
+function runNetWithSettings(sett) {
+	var time = 1.0;
+	let settings = {};
+
+	// Go through all properties and parse them accordingly as input or output
+	for(var p in sett) {
+    if(sett.hasOwnProperty(p)) {
+      if(p !== "time") {
+      	settings[p] = sett[p];
+      }
+      else {
+      	settings[p] = sett[p];
+      }
+    }
+  }
+
+	var output = net.run(settings);
 	return output;
 }
 
@@ -279,7 +339,7 @@ function parseData(data) {
 		// Go through all properties and parse them accordingly as input or output
 		for(var p in data[i]) {
 	    if(data[i].hasOwnProperty(p)) {
-	      if(p === "time") {
+	      if(p !== "time") {
 	      	newObj.input[p] = data[i][p];
 	      }
 	      else {
@@ -292,6 +352,16 @@ function parseData(data) {
 
 	return newData;
 }
+
+// Commandline string interface for testing
+stdin.addListener('data', function(d) {
+  let string = d.toString().trim();
+  if(string === 'seed') {
+    noiseSeed = utility.getRandomInt(1, 65500);
+    console.log('New noise seed: ' + noiseSeed);
+    noiseGen.seed(noiseSeed);
+  }
+});
 
 module.exports = {
   startTraining,
