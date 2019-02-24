@@ -28,11 +28,13 @@ let i2cWriteRetries = 0;
 
 let getSettingsInterval;
 let trainingBrain = false;
-const getSettingsIntervalTime = 60000;
+const getSettingsIntervalTime = 10000;
+
+const noise = require('noisejs');
 
 // Express Server Calls
 app.use(express.static(__dirname + '/public'));
-app.use(express.static(__dirname + '/node_modules/howler/dist'));
+app.use(express.static(__dirname + '/node_modules/p5/lib'));
 
 app.get('/', function(req, res) {
   res.sendFile(__dirname + '/index.html');
@@ -104,7 +106,7 @@ function lookupServerIp() {
 }
 
 /**
- * Attemps to read the i2c status, and calls MQTT to send out a potential climax
+ * Attemps to read the current settings and how they are performing
  */
 function getSettings() {
   if(shouldUseI2C === '1') {
@@ -116,6 +118,9 @@ function getSettings() {
       // The first index is the climax state
       if(unoMsg[0] === 120) {
         let newSettings = I2CToSettings(unoMsg);
+        // Save settings 
+        theSettings = JSON.parse(JSON.stringify(newSettings));
+
         ml.writeSettings(newSettings).then(function(res) {
           trainBrain();
         }).catch(function(err) {
@@ -132,11 +137,13 @@ function getSettings() {
   }
 }
 
+let theSettings = {};
+
 function trainBrain() {
   if(!trainingBrain) {
     trainingBrain = true;
     ml.startTraining().then(function(msg) {
-      let newSettings = ml.runNet();
+      let newSettings = generateNewSettings();
       let i2cSettings = settingsToI2C(newSettings);
       console.log("Our new settings are: " + i2cSettings);
       writeThisToI2C(0, 95, i2cSettings);
@@ -146,6 +153,30 @@ function trainBrain() {
       trainingBrain = false;
     });
   }
+}
+
+let noiseSeed = utility.getRandomInt(1, 65535);
+let x = Math.random(), y = Math.random();
+let noiseGen = new noise.Noise(noiseSeed);
+function generateNewSettings() {
+  let result = ml.runNetWithSettings(theSettings);
+
+  let theNoise, counter = 1;
+
+  for(var p in theSettings) {
+    if(theSettings.hasOwnProperty(p)) {
+      theNoise = noiseGen.perlin2(x, 100 + y * counter);
+      let newSett = theSettings[p] + ((1 - result.time) * theNoise) / 10;
+      newSett = Math.min(Math.max(newSett, 0), 1);
+      theSettings[p] = newSett;
+      counter++;
+    }
+  }
+
+  x += 1;
+  y += 10;
+
+  return theSettings;
 }
 
 /**
@@ -251,6 +282,7 @@ function settingsToI2C(sett) {
   // A faulty connection would show 255 on the Arduino
   // so we're sending 120 as a way to check if the connection is solid
   let settingsArray = [120];
+
   for(let s in theSettings) {
     if(theSettings.hasOwnProperty(s)) {
       theSettings[s] = Math.floor(Math.max(Math.min(theSettings[s], 1), 0) * 255);
@@ -272,7 +304,7 @@ function I2CToSettings(sett) {
 // Commandline string interface for testing
 stdin.addListener('data', function(d) {
   let string = d.toString().trim();
-  let msg = [120, false, false, false, false, false];
+  let msg = [120, false, false, false, false, false, utility.getRandomInt(0, 255), utility.getRandomInt(0, 255)];
   if(string === 'climax') {
     msg[1] = true;
     io.emit('state', msg);

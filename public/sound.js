@@ -1,143 +1,95 @@
 var socket = io();
 var myState = 'IDLE';
 
-var prox = 0;
+var osc;
+var playing = false;
+var t = 0,
+    n, a = 0.1,
+    v, vv;
 
-var loopedAudio, oneShotAudio;
-var loopedAudio;
-var oneShotAudio;
-var isOneShotPlaying = false;
-var isLooping = false;
-var isFadingLoop = false;
+var song;
 
-socket.on('state', function(data){
-	console.log(data);
-	var state = establishState(data);
-	console.log(state);
+var sensorDatOne = 0, sensorDatTwo = 0;
 
-	switch (state) {
-	  case 'CLIMAX':
-     	isOneShotPlaying = false;
-      playOneShot('climax/climax_', 0, 0);
-	    break;
-	  case 'REACTING-0':
-     	isOneShotPlaying = false;
-      playOneShot('reacting/reacting_', 0, 0, 1);
-	  case 'REACTING-1':
-     	isOneShotPlaying = false;
-      playOneShot('reacting/reacting_', 0, 0, -1);
-	    break;
-	  case 'ACTIVE-0':
-     	isOneShotPlaying = false;
-      playOneShot('active/active_', 0, 0, 1);
-	    break;
-	  case 'ACTIVE-1':
-     	isOneShotPlaying = false;
-      playOneShot('active/active_', 0, 0, -1);
-	    break;
-	  default:
-	    break;
-	}
+socket.on('state', function(data) {
+    console.log(data);
+    var state = establishState(data);
+    console.log(state);
 
-  myState = state !== myState ? state : myState;
+    select('.states').html(data);
+
+    activateSong();
+
+    myState = state !== myState ? state : myState;
 });
 
-function playSound(filePrefix, fileNumMin, fileNumMax, shouldLoop, side) {
-  return new Promise(function(resolve, reject) {
-    let fileName = filePrefix;
-    fileName += fileNumMin === fileNumMax ? fileNumMin : getRandomInt(fileNumMin, fileNumMax);
-    fileName += '.wav';
-    console.log('/sfx/' + fileName);
-    if(shouldLoop) {
-      loopedAudio = new Howl({
-				src: ['/sfx/' + fileName],
-				autoplay: true,
-				loop: true,
-				volume: 1.0,
-				stereo: side,
-				onend: function() {
-				resolve('Successfully played ' + fileName);
-				},
-				onloaderror: function(id, err) {
-					reject('Can\'t play ' + id + ': ' + err);
-				},
-				onfade: function() {
-					isLooping = false;
-					isFadingLoop = false;
-					this.stop();
-				}
-			});
+function preload() {
+	console.log('preload');
+    song = loadSound('/sfx/healie.wav');
+}
+
+function setup() {
+	console.log('setup');
+    createCanvas(windowWidth, windowHeight);
+    background(255, 0, 0);
+    backgroundColor = color(255, 0, 255);
+
+}
+
+function draw() {
+    if (frameCount % 5 == 0) {
+        a = map(sensorDatOne, 0, 255, 0.01, 1.3);
+        t += a;
+        n = noise(t);
+
+        v = map(sensorDatOne, 0, 255, 0.1, 0.3);
+        vv = v + 1.7;
+
+
+        if (n > 0.5) {
+            // song.amp(vv, 0.01);
+        } else {
+            // song.amp(v, 0.01);
+        }
+        console.log(v, vv);
     }
-    else {
-      oneShotAudio = new Howl({
-      	src: ['/sfx/' + fileName],
-			  autoplay: true,
-			  volume: 1.0,
-			  stereo: side,
-			  onend: function() {
-			    resolve('Successfully played ' + fileName);
-			 	},
-			 	onloaderror: function(id, err) {
-			 		reject('Can\'t play ' + id + ': ' + err);
-			 	}
-			});
+
+    var speed = map(sensorDatOne, 0.1, 255, 0.5, 1.2);
+    speed = constrain(speed, 0.5, 1);
+    // song.rate(speed);
+}
+
+function activateSong() {
+    if (song !== undefined) {
+        if (!song.isPlaying()) { // .isPlaying() returns a boolean
+            console.log('activateSong');
+            song.loop();
+            background(0, 255, 0);
+        }
     }
-  })
-}
-
-function playLoop(filePrefix, fileNumMin, fileNumMax) {
-  if(!isLooping) {
-  	isLooping = true;
-    playSound(filePrefix, fileNumMin, fileNumMax, true).then(function(msg) {
-      playLoop(filePrefix, fileNumMin, fileNumMax);
-      console.log(msg);
-    })
-    .catch(function(err) {
-      console.log('Error in loop sound: ' + err);
-    });
-  }
-}
-
-function stopLoop() {
-  if(loopedAudio !== undefined && loopedAudio.playing()) {
-  	if(!isFadingLoop) loopedAudio.fade(1, 0, 500);
-  	isFadingLoop = true;
-  }
-}
-
-function playOneShot(filePrefix, fileNumMin, fileNumMax, side) {
-  if(!isOneShotPlaying) {
-    isOneShotPlaying = true;
-    playSound(filePrefix, fileNumMin, fileNumMax, false, side).then(function(msg) {
-      console.log(msg);
-      isOneShotPlaying = false;
-    })
-    .catch(function(err) {
-      console.log('Error in one shot sound: ' + err);
-      isOneShotPlaying = false;
-    });
-  }
 }
 
 function establishState(arr) {
-	let theState = '';
-	for(let i = 0; i < arr.length; i++) {
-		if(i === 1) theState = arr[i] ? 'CLIMAX' : '';
-		if(i === 2) theState = arr[i] ? 'ACTIVE-0' : '';
-		if(i === 3) theState = arr[i] ? 'ACTIVE-1' : '';
-		if(i === 4) theState = arr[i] ? 'REACTING-0' : '';
-		if(i === 5) theState = arr[i] ? 'REACTING-1' : '';
+    let theState = '';
+    for (let i = 0; i < arr.length; i++) {
+        if (i === 1) theState = arr[i] ? 'CLIMAX' : '';
+        if (i === 2) theState = arr[i] ? 'ACTIVE-0' : '';
+        if (i === 3) theState = arr[i] ? 'ACTIVE-1' : '';
+        if (i === 4) theState = arr[i] ? 'REACTING-0' : '';
+        if (i === 5) theState = arr[i] ? 'REACTING-1' : '';
+        if (i === 6) sensorDatOne = arr[i];
+        if (i === 7) sensorDatTwo = arr[i];
 
-		if(theState !== '') return theState;
-	}
-	return theState;
+        if (theState !== '') return theState;
+    }
+    return theState;
 }
 
 // Max is inclusive
 function getRandomInt(min, max) {
-  return min + Math.floor(Math.random() * Math.floor(max + 1));
+    return min + Math.floor(Math.random() * Math.floor(max + 1));
 }
 
 function mapNumber(x, in_min, in_max, out_min, out_max) {
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }

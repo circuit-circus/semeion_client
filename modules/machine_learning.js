@@ -14,11 +14,12 @@ const trainConfig = {
 	errorThresh : 0.01, // Stop training, if we reach an error rate of this much
 	learningRate : 0.1, // Higher rate means faster learning, but less accurate and more error prone
 	iterations : 5000, // Stop training, if we go through this many iterations
-	timeout : 15000 // Stop training after this amount of milliseconds
+	timeout : 5000 // Stop training after this amount of milliseconds
 };
 
 const netConfig = {
-    hiddenLayers : [5, 10, 5] // How many hidden layers do we want? These are overwritten by an old brain, if it's read
+    hiddenLayers : [3], // How many hidden layers do we want? These are overwritten by an old brain, if it's read
+    activation : 'leaky-relu'
 };
 
 // Setup a new neural network
@@ -66,7 +67,7 @@ function readDataAndTrain() {
 function startTraining() {
 	console.log('Starting to train brain.');
 	return new Promise(function(resolve, reject) {
-		if(trainingData.length === 1) {
+		if(trainingData.length <= 1) {
 			readDataAndTrain().then(function(res) {
 				resolve(res);
 			}).catch(function(err) {
@@ -128,6 +129,23 @@ function readSettings() {
 function runNet() {
 	var time = 1.0;
 	var output = net.run({"time" : time});
+	console.log(output);
+	return output;
+}
+
+function runNetWithSettings(sett) {
+	let settings = {};
+
+	// Go through all properties and parse them accordingly as input or output
+	for(var p in sett) {
+    if(sett.hasOwnProperty(p)) {
+      if(p !== "time") {
+      	settings[p] = sett[p];
+      }
+    }
+  }
+
+	var output = net.run(settings);
 	return output;
 }
 
@@ -214,7 +232,7 @@ function parseData(data) {
 		// Go through all properties and parse them accordingly as input or output
 		for(var p in data[i]) {
 	    if(data[i].hasOwnProperty(p)) {
-	      if(p === "time") {
+	      if(p !== "time") {
 	      	newObj.input[p] = data[i][p];
 	      }
 	      else {
@@ -231,5 +249,6 @@ function parseData(data) {
 module.exports = {
   startTraining,
   writeSettings,
-  runNet
+  runNet,
+  runNetWithSettings
 }
