@@ -1,20 +1,82 @@
 var socket = io();
 var myState = 'IDLE';
 
-var osc;
-var playing = false;
-var t = 0,
-    n, a = 0.1,
-    v, vv;
-
 var song;
 
-var sensorDatOne = 0, sensorDatTwo = 0;
+var filt, sensorVal = 0, sensorValMin, sensorValMax;
+var playing = false;
+var t = 0,
+    sine, change = 0.1,
+    changeMin = 0.02,
+    changeMax = 0.33,
+    volume = 0, volumeMin = 0.2,
+    volumeMax = 2,
+    speed, speedMin, speedMax;
+
+function preload() {
+    wobble = loadSound('/sfx/wind.mp3');
+}
+
+function setup() {
+    createCanvas(windowWidth, windowHeight);
+    background(255, 0, 0);
+    filt = new p5.LowPass();
+    wobble.disconnect();
+    wobble.connect(filt);
+}
+
+function setSensorValues() {
+    //CHANGE TO DOPPLER INPUT HERE
+    sensorValMin = 0.1;
+    sensorValMax = 255;
+}
+
+function setSpeed() {
+    speedMin = 0.5;
+    speedMax = 1.2;
+    speed = map(sensorVal, sensorValMin, sensorValMax, speedMin, speedMax);
+    speed = constrain(speed, speedMin, speedMax);
+}
+
+function setChange() {
+    change = map(sensorVal, sensorValMin, sensorValMax, changeMin, changeMax);
+    change = constrain(change, changeMin, changeMax);
+
+    t += change;
+    sine = sin(t);
+}
+
+function setVolume() {
+    volume = map(sensorVal, sensorValMin, sensorValMax, volumeMin, volumeMax);
+    volume = constrain(volume, volumeMin, volumeMax);
+
+    wobble.amp(volume);
+}
+
+function setEffects() {
+    let f = map(sine, -1, 1, 100, 20000);
+    filt.set(f, 10);
+    wobble.rate(speed);
+}
+
+function draw() {
+    setSpeed();
+    setSensorValues();
+    setChange();
+    setVolume();
+    setEffects();
+}
+
+function activateSong() {
+    wobble.loop();
+    wobble.jump(int(random(wobble.duration())));
+}
 
 socket.on('state', function(data) {
-    console.log(data);
+    // console.log(data);
     var state = establishState(data);
-    console.log(state);
+    // console.log(state);
+    console.log(sensorVal);
 
     select('.states').html(data);
 
@@ -23,62 +85,18 @@ socket.on('state', function(data) {
     myState = state !== myState ? state : myState;
 });
 
-function preload() {
-	console.log('preload');
-    song = loadSound('/sfx/healie.wav');
-}
-
-function setup() {
-	console.log('setup');
-    createCanvas(windowWidth, windowHeight);
-    background(255, 0, 0);
-    backgroundColor = color(255, 0, 255);
-
-}
-
-function draw() {
-    if (frameCount % 5 == 0) {
-        a = map(sensorDatOne, 0, 255, 0.01, 1.3);
-        t += a;
-        n = noise(t);
-
-        v = map(sensorDatOne, 0, 255, 0.1, 0.3);
-        vv = v + 1.7;
-
-
-        if (n > 0.5) {
-            // song.amp(vv, 0.01);
-        } else {
-            // song.amp(v, 0.01);
-        }
-        console.log(v, vv);
-    }
-
-    var speed = map(sensorDatOne, 0.1, 255, 0.5, 1.2);
-    speed = constrain(speed, 0.5, 1);
-    // song.rate(speed);
-}
-
-function activateSong() {
-    if (song !== undefined) {
-        if (!song.isPlaying()) { // .isPlaying() returns a boolean
-            console.log('activateSong');
-            song.loop();
-            background(0, 255, 0);
-        }
-    }
-}
-
 function establishState(arr) {
     let theState = '';
+
+    sensorVal = arr[6];
+    // sensorDatTwo = arr[7];
+
     for (let i = 0; i < arr.length; i++) {
         if (i === 1) theState = arr[i] ? 'CLIMAX' : '';
         if (i === 2) theState = arr[i] ? 'ACTIVE-0' : '';
         if (i === 3) theState = arr[i] ? 'ACTIVE-1' : '';
         if (i === 4) theState = arr[i] ? 'REACTING-0' : '';
         if (i === 5) theState = arr[i] ? 'REACTING-1' : '';
-        if (i === 6) sensorDatOne = arr[i];
-        if (i === 7) sensorDatTwo = arr[i];
 
         if (theState !== '') return theState;
     }

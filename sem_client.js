@@ -28,9 +28,7 @@ let i2cWriteRetries = 0;
 
 let getSettingsInterval;
 let trainingBrain = false;
-const getSettingsIntervalTime = 10000;
-
-const noise = require('noisejs');
+const getSettingsIntervalTime = 60000;
 
 // Express Server Calls
 app.use(express.static(__dirname + '/public'));
@@ -106,7 +104,7 @@ function lookupServerIp() {
 }
 
 /**
- * Attemps to read the current settings and how they are performing
+ * Attemps to read the i2c status, and calls MQTT to send out a potential climax
  */
 function getSettings() {
   if(shouldUseI2C === '1') {
@@ -118,9 +116,6 @@ function getSettings() {
       // The first index is the climax state
       if(unoMsg[0] === 120) {
         let newSettings = I2CToSettings(unoMsg);
-        // Save settings 
-        theSettings = JSON.parse(JSON.stringify(newSettings));
-
         ml.writeSettings(newSettings).then(function(res) {
           trainBrain();
         }).catch(function(err) {
@@ -137,13 +132,11 @@ function getSettings() {
   }
 }
 
-let theSettings = {};
-
 function trainBrain() {
   if(!trainingBrain) {
     trainingBrain = true;
     ml.startTraining().then(function(msg) {
-      let newSettings = generateNewSettings();
+      let newSettings = ml.runNet();
       let i2cSettings = settingsToI2C(newSettings);
       console.log("Our new settings are: " + i2cSettings);
       writeThisToI2C(0, 95, i2cSettings);
@@ -155,30 +148,6 @@ function trainBrain() {
   }
 }
 
-let noiseSeed = utility.getRandomInt(1, 65535);
-let x = Math.random(), y = Math.random();
-let noiseGen = new noise.Noise(noiseSeed);
-function generateNewSettings() {
-  let result = ml.runNetWithSettings(theSettings);
-
-  let theNoise, counter = 1;
-
-  for(var p in theSettings) {
-    if(theSettings.hasOwnProperty(p)) {
-      theNoise = noiseGen.perlin2(x, 100 + y * counter);
-      let newSett = theSettings[p] + ((1 - result.time) * theNoise) / 10;
-      newSett = Math.min(Math.max(newSett, 0), 1);
-      theSettings[p] = newSett;
-      counter++;
-    }
-  }
-
-  x += 1;
-  y += 10;
-
-  return theSettings;
-}
-
 /**
  * Attemps to read the i2c status, and calls MQTT to send out a potential climax
  */
@@ -187,10 +156,12 @@ function checkClimaxUpdate() {
     i2c.i2cRead(8, 99).then(function(msg) {
       // Convert the received buffer to an array
       let unoMsg = JSON.parse(msg);
+console.log(unoMsg);
 
       // The first index is a test
       if(unoMsg[0] === 120) {
         // The second index is the climax state
+        console.log(unoMsg[1] === 1);
         isClimaxing = unoMsg[1] === 1 ? true : false;
 
         // Transmit state and data to the browser
@@ -213,6 +184,7 @@ function checkClimaxUpdate() {
  */
 function sendClimaxUpdate() {
   var dataToSend = JSON.stringify({clientInfo: mqtt_service.myInfo, clientState: isClimaxing});
+  console.log(dataToSend);
   if(mqtt_service.client !== undefined) {
     mqtt_service.client.publish('sem_client/climax', dataToSend);
   }
@@ -282,7 +254,6 @@ function settingsToI2C(sett) {
   // A faulty connection would show 255 on the Arduino
   // so we're sending 120 as a way to check if the connection is solid
   let settingsArray = [120];
-
   for(let s in theSettings) {
     if(theSettings.hasOwnProperty(s)) {
       theSettings[s] = Math.floor(Math.max(Math.min(theSettings[s], 1), 0) * 255);

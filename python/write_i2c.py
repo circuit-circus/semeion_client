@@ -48,3 +48,5 @@ else:
 # Close python script and clean output
 sys.stderr.flush()
 sys.stdout.flush()
+
+quit()
