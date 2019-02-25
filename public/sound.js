@@ -1,7 +1,7 @@
 var socket = io();
 var myState = 'IDLE';
 
-var song;
+var climaxSfx;
 
 var filt, sensorVal = 0, sensorValMin, sensorValMax;
 var playing = false;
@@ -15,6 +15,7 @@ var t = 0,
 
 function preload() {
     wobble = loadSound('/sfx/wind.mp3');
+    climaxSfx = loadSound('/sfx/climax_0.wav');
 }
 
 function setup() {
@@ -75,7 +76,9 @@ function activateSong() {
 socket.on('state', function(data) {
     // console.log(data);
     var state = establishState(data);
-    // console.log(state);
+    if(state === 'CLIMAX') {
+        climaxSfx.play();
+    }
     console.log(sensorVal);
 
     select('.states').html(data);
