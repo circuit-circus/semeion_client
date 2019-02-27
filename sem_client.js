@@ -138,7 +138,7 @@ function trainBrain() {
     ml.startTraining().then(function(msg) {
       let newSettings = ml.runNet();
       let i2cSettings = settingsToI2C(newSettings);
-      console.log("Our new settings are: " + i2cSettings);
+      // console.log("Our new settings are: " + i2cSettings);
       writeThisToI2C(0, 95, i2cSettings);
       trainingBrain = false;
     }).catch(function(err) {
@@ -156,12 +156,10 @@ function checkClimaxUpdate() {
     i2c.i2cRead(8, 99).then(function(msg) {
       // Convert the received buffer to an array
       let unoMsg = JSON.parse(msg);
-console.log(unoMsg);
 
       // The first index is a test
       if(unoMsg[0] === 120) {
         // The second index is the climax state
-        console.log(unoMsg[1] === 1);
         isClimaxing = unoMsg[1] === 1 ? true : false;
 
         // Transmit state and data to the browser
