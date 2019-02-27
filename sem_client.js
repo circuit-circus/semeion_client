@@ -20,7 +20,7 @@ let server = require('http').createServer(app);
 var io = require('socket.io')(server);
 
 let checkClimaxInterval;
-const checkClimaxIntervalTime = 750;
+const checkClimaxIntervalTime = 300;
 let isClimaxing = false;
 
 const i2cWriteRetriesMax = 10;
@@ -28,7 +28,7 @@ let i2cWriteRetries = 0;
 
 let getSettingsInterval;
 let trainingBrain = false;
-const getSettingsIntervalTime = 60000;
+const getSettingsIntervalTime = 300;
 
 // Express Server Calls
 app.use(express.static(__dirname + '/public'));
@@ -156,12 +156,10 @@ function checkClimaxUpdate() {
     i2c.i2cRead(8, 99).then(function(msg) {
       // Convert the received buffer to an array
       let unoMsg = JSON.parse(msg);
-console.log(unoMsg);
 
       // The first index is a test
       if(unoMsg[0] === 120) {
         // The second index is the climax state
-        console.log(unoMsg[1] === 1);
         isClimaxing = unoMsg[1] === 1 ? true : false;
 
         // Transmit state and data to the browser

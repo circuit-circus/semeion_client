@@ -14,7 +14,7 @@ const trainConfig = {
 	errorThresh : 0.01, // Stop training, if we reach an error rate of this much
 	learningRate : 0.1, // Higher rate means faster learning, but less accurate and more error prone
 	iterations : 5000, // Stop training, if we go through this many iterations
-	timeout : 5000 // Stop training after this amount of milliseconds
+	timeout : 500 // Stop training after this amount of milliseconds
 };
 
 const netConfig = {
@@ -24,6 +24,23 @@ const netConfig = {
 
 // Setup a new neural network
 const net = new brain.NeuralNetwork(netConfig);
+
+setInterval(() => {
+	startTraining().then((res) => {
+		console.log(res);
+		let newSettings = {
+			baseHue : Math.random(),
+			baseSat : Math.random(),
+			time : Math.random()
+		};
+		trainingData.push(newSettings);
+
+		console.log(trainingData.length);
+
+	}).catch((err) => {
+		console.error(err);
+	});
+}, trainConfig.timeout * 1.1)
 
 /**
  * Reads the training data, and then trains the neural network. Will attempt to continue with an old brain, if it's available
@@ -129,7 +146,6 @@ function readSettings() {
 function runNet() {
 	var time = 1.0;
 	var output = net.run({"time" : time});
-	console.log(output);
 	return output;
 }
 
