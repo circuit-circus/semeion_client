@@ -1,4 +1,50 @@
-<div class="main">Welcome! The states are: <span class="states">...</span></div>
+<style type="text/css">
+	* {
+		font-family: "Montserrat", sans-serif;
+	}
+
+	.main {
+		margin: 0 auto;
+		text-align: center;
+		width: 50vw;
+	}
+
+	body {
+		margin: 0;
+	}
+
+	h1 {
+		background: #00f;
+		color: #fff;
+		padding: 10px 0;
+	}
+
+	h2 {
+		font-weight: normal;
+	}
+
+	h2 span {
+		color: #00f;
+		font-weight: normal;
+	}
+
+	@media screen and (max-width: 760px) {
+		.main {
+			width: 90vw;
+		}
+	}
+</style>
+
+<div class="main">
+	<h1>Semeion Debugger<br/>ID · <span class="id"></span></h1>
+	<h2>
+		<div>Tech side · <span class="side-one-activity">...</span></div>
+		<hr/>
+		<div>Back side · <span class="side-two-activity">...</span></div>
+		<hr/>
+		<div>Climax? · <span class="climax-activity">...</span></div>
+	</h2>
+</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="/p5.min.js"></script>

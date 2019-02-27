@@ -13,14 +13,28 @@ var t = 0,
     volumeMax = 2,
     speed, speedMin, speedMax;
 
+var readyToPlay = false;
+
 function preload() {
-    wobble = loadSound('/sfx/wind.mp3');
+    soundFormats('mp3', 'ogg', 'wav');
+    wobble = loadSound('/sfx/wind_short.ogg', 
+        () => {
+            console.log('Wobble successfully loaded!');
+            readyToPlay = true;
+        }, 
+        (err) => {
+            console.log('Wobble did not load: ' + err.message);
+            preload();
+        },
+        (prog) => {
+            console.log('File loaded: ' + (prog * 100) + '%');
+        });
     climaxSfx = loadSound('/sfx/climax_0.wav');
 }
 
 function setup() {
-    createCanvas(windowWidth, windowHeight);
-    background(255, 0, 0);
+    // createCanvas(windowWidth, windowHeight);
+    // background(255, 0, 0);
     filt = new p5.LowPass();
     wobble.disconnect();
     wobble.connect(filt);
@@ -69,8 +83,11 @@ function draw() {
 }
 
 function activateSong() {
-    wobble.loop();
-    wobble.jump(int(random(wobble.duration())));
+    if(!playing && readyToPlay) {
+        wobble.loop();
+        wobble.jump(int(random(wobble.duration())));
+        playing = true;
+    }
 }
 
 socket.on('state', function(data) {
@@ -79,13 +96,19 @@ socket.on('state', function(data) {
     if(state === 'CLIMAX') {
         climaxSfx.play();
     }
-    console.log(sensorVal);
+    // console.log(sensorVal);
 
-    select('.states').html(data);
+    select('.side-one-activity').html(data[6]);
+    select('.side-two-activity').html(data[7]);
+    select('.climax-activity').html(state === 'CLIMAX' ? 'Yes!' : 'No');
 
     activateSong();
 
     myState = state !== myState ? state : myState;
+});
+
+socket.on('connected', function(data) {
+    select('.id').html(data);
 });
 
 function establishState(arr) {
