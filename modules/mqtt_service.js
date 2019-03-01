@@ -63,14 +63,19 @@ process.on('uncaughtException', handleAppExit.bind(null, {
  */
 function handleAppExit(options, err) {
 
-  if (err) {
-    console.log('Error: ' + err.stack)
+  console.log('Exiting...');
+
+  if (err && err != undefined) {
+    console.log(err);
+    console.log('Exiting with message: ' + err)
   }
 
-  if (options.cleanup) {
+  if (options.cleanup && client != undefined) {
     console.log('Cleaning up...');
     client.publish('sem_client/disconnect', JSON.stringify(myInfo));
   }
+
+  console.log('BYE!');
 
   setTimeout(function() {
     if(options.kill) {
