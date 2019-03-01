@@ -67,6 +67,8 @@ lookupServerIp().then(function(serverIp) {
 
 io.on('connection', function(socket){
   console.log('A user connected');
+
+  io.emit('connected', configs.semeionId);
 });
 
 server.listen(port, function() {

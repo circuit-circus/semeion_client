@@ -2,6 +2,7 @@ var socket = io();
 var myState = 'IDLE';
 
 var climaxSfx;
+var id = 0;
 
 var filt, sensorVal = 0, sensorValMin, sensorValMax;
 var playing = false;
@@ -12,18 +13,35 @@ var t = 0,
     volume = 0, volumeMin = 0.2,
     volumeMax = 2,
     speed, speedMin, speedMax;
+var alienNoises = [];
+
+var readyToPlay = false;
 
 function preload() {
-    wobble = loadSound('/sfx/wind.mp3');
+    soundFormats('mp3', 'ogg', 'wav');
+
+    alienNoises[id] = loadSound('/sfx/alienNoise'+id+'.mp3',
+
+        () => {
+            console.log('Alien noise successfully loaded!');
+            readyToPlay = true;
+        }, 
+        (err) => {
+            console.log('Alien noise did not load: ' + err.message);
+            preload();
+        },
+        (prog) => {
+            console.log('File loaded: ' + (prog * 100) + '%');
+        });
     climaxSfx = loadSound('/sfx/climax_0.wav');
 }
 
 function setup() {
-    createCanvas(windowWidth, windowHeight);
-    background(255, 0, 0);
+    // createCanvas(windowWidth, windowHeight);
+    // background(255, 0, 0);
     filt = new p5.LowPass();
-    wobble.disconnect();
-    wobble.connect(filt);
+    alienNoises[id].disconnect();
+    alienNoises[id].connect(filt);
 }
 
 function setSensorValues() {
@@ -51,16 +69,17 @@ function setVolume() {
     volume = map(sensorVal, sensorValMin, sensorValMax, volumeMin, volumeMax);
     volume = constrain(volume, volumeMin, volumeMax);
 
-    wobble.amp(volume);
+    alienNoises[id].amp(volume);
 }
 
 function setEffects() {
     let f = map(sine, -1, 1, 100, 20000);
     filt.set(f, 10);
-    wobble.rate(speed);
+    alienNoises[id].rate(speed);
 }
 
 function draw() {
+    if(readyToPlay) activateSong();
     setSpeed();
     setSensorValues();
     setChange();
@@ -69,8 +88,11 @@ function draw() {
 }
 
 function activateSong() {
-    wobble.loop();
-    wobble.jump(int(random(wobble.duration())));
+    if(!playing && readyToPlay) {
+        alienNoises[id].loop();
+        alienNoises[id].jump(int(random(alienNoises[id].duration())));
+        playing = true;
+    }
 }
 
 socket.on('state', function(data) {
@@ -79,13 +101,19 @@ socket.on('state', function(data) {
     if(state === 'CLIMAX') {
         climaxSfx.play();
     }
-    console.log(sensorVal);
+    // console.log(sensorVal);
 
-    select('.states').html(data);
+    select('.side-one-activity').html(data[6]);
+    select('.side-two-activity').html(data[7]);
+    select('.climax-activity').html(state === 'CLIMAX' ? 'Yes!' : 'No');
 
     activateSong();
 
     myState = state !== myState ? state : myState;
+});
+
+socket.on('connected', function(data) {
+    select('.id').html(data);
 });
 
 function establishState(arr) {
