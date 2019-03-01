@@ -28,6 +28,7 @@ function initializeMqtt(serverIp) {
       myInfo.clientId = client.options.clientId;
 
       // Subscribe to relevant channels
+      client.subscribe('sem_client/other_climax');
       client.subscribe('sem_client/other_state');
 
       // Inform controllers that sem_client is connected and send this Id

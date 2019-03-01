@@ -1,135 +1,139 @@
 var socket = io();
 var myState = 'IDLE';
 
-var prox = 0;
+var climaxSfx;
 
-var loopedAudio, oneShotAudio;
-var loopedAudio;
-var oneShotAudio;
-var isOneShotPlaying = false;
-var isLooping = false;
-var isFadingLoop = false;
+var filt, sensorVal = 0, sensorValMin, sensorValMax;
+var playing = false;
+var t = 0,
+    sine, change = 0.1,
+    changeMin = 0.02,
+    changeMax = 0.33,
+    volume = 0, volumeMin = 0.2,
+    volumeMax = 2,
+    speed, speedMin, speedMax;
 
-socket.on('state', function(data){
-	var state = data[0];
-	prox = data[1];
-	console.log(data);
+var readyToPlay = false;
 
-	switch (state) {
-	  // Dark
-	  case 'DARK':
-	    playOneShot('k', 0, 11);
-	    break;
-	  // Idle
-	  case 'IDLE':
-	    playOneShot('d', 0, 1);
-	    break;
-	  // Interact
-	  case 'INTERACT':
-	    let audioId = Math.floor(mapNumber(prox, 0, 15, 0, 4));
-	    isOneShotPlaying = false;
-	    playOneShot('be', audioId, audioId);
-	    break;
-	  // Climax
-	  case 'CLIMAX':
-	    if(myState != 'CLIMAX') {
-	     	isOneShotPlaying = false;
-	      playOneShot('n', 0, 0);
-	    }
-	    break;
-	  // Shock
-	  case 'SHOCK':
-	    if(myState != 'SHOCK') {
-	      isOneShotPlaying = false;
-	      playOneShot('d', 4, 4);
-	    }
-	    break;
-	  default:
-	    break;
-	}
+function preload() {
+    soundFormats('mp3', 'ogg', 'wav');
+    wobble = loadSound('/sfx/wind_short.ogg', 
+        () => {
+            console.log('Wobble successfully loaded!');
+            readyToPlay = true;
+        }, 
+        (err) => {
+            console.log('Wobble did not load: ' + err.message);
+            preload();
+        },
+        (prog) => {
+            console.log('File loaded: ' + (prog * 100) + '%');
+        });
+    climaxSfx = loadSound('/sfx/climax_0.wav');
+}
 
-  myState = state !== myState ? state : myState;
+function setup() {
+    // createCanvas(windowWidth, windowHeight);
+    // background(255, 0, 0);
+    filt = new p5.LowPass();
+    wobble.disconnect();
+    wobble.connect(filt);
+}
+
+function setSensorValues() {
+    //CHANGE TO DOPPLER INPUT HERE
+    sensorValMin = 0.1;
+    sensorValMax = 255;
+}
+
+function setSpeed() {
+    speedMin = 0.5;
+    speedMax = 1.2;
+    speed = map(sensorVal, sensorValMin, sensorValMax, speedMin, speedMax);
+    speed = constrain(speed, speedMin, speedMax);
+}
+
+function setChange() {
+    change = map(sensorVal, sensorValMin, sensorValMax, changeMin, changeMax);
+    change = constrain(change, changeMin, changeMax);
+
+    t += change;
+    sine = sin(t);
+}
+
+function setVolume() {
+    volume = map(sensorVal, sensorValMin, sensorValMax, volumeMin, volumeMax);
+    volume = constrain(volume, volumeMin, volumeMax);
+
+    wobble.amp(volume);
+}
+
+function setEffects() {
+    let f = map(sine, -1, 1, 100, 20000);
+    filt.set(f, 10);
+    wobble.rate(speed);
+}
+
+function draw() {
+    setSpeed();
+    setSensorValues();
+    setChange();
+    setVolume();
+    setEffects();
+}
+
+function activateSong() {
+    if(!playing && readyToPlay) {
+        wobble.loop();
+        wobble.jump(int(random(wobble.duration())));
+        playing = true;
+    }
+}
+
+socket.on('state', function(data) {
+    // console.log(data);
+    var state = establishState(data);
+    if(state === 'CLIMAX') {
+        climaxSfx.play();
+    }
+    // console.log(sensorVal);
+
+    select('.side-one-activity').html(data[6]);
+    select('.side-two-activity').html(data[7]);
+    select('.climax-activity').html(state === 'CLIMAX' ? 'Yes!' : 'No');
+
+    activateSong();
+
+    myState = state !== myState ? state : myState;
 });
 
-function playSound(filePrefix, fileNumMin, fileNumMax, shouldLoop) {
-  return new Promise(function(resolve, reject) {
-    let fileName = filePrefix;
-    fileName += fileNumMin === fileNumMax ? fileNumMin : getRandomInt(fileNumMin, fileNumMax);
-    fileName += '.mp3';
-    if(shouldLoop) {
-      loopedAudio = new Howl({
-				src: ['/sfx/' + fileName],
-				autoplay: true,
-				loop: true,
-				volume: 1.0,
-				onend: function() {
-				resolve('Successfully played ' + fileName);
-				},
-				onloaderror: function(id, err) {
-					reject('Can\'t play ' + id + ': ' + err);
-				},
-				onfade: function() {
-					isLooping = false;
-					isFadingLoop = false;
-					this.stop();
-				}
-			});
+socket.on('connected', function(data) {
+    select('.id').html(data);
+});
+
+function establishState(arr) {
+    let theState = '';
+
+    sensorVal = arr[6];
+    // sensorDatTwo = arr[7];
+
+    for (let i = 0; i < arr.length; i++) {
+        if (i === 1) theState = arr[i] ? 'CLIMAX' : '';
+        if (i === 2) theState = arr[i] ? 'ACTIVE-0' : '';
+        if (i === 3) theState = arr[i] ? 'ACTIVE-1' : '';
+        if (i === 4) theState = arr[i] ? 'REACTING-0' : '';
+        if (i === 5) theState = arr[i] ? 'REACTING-1' : '';
+
+        if (theState !== '') return theState;
     }
-    else {
-      oneShotAudio = new Howl({
-      	src: ['/sfx/' + fileName],
-			  autoplay: true,
-			  volume: 1.0,
-			  onend: function() {
-			    resolve('Successfully played ' + fileName);
-			 	},
-			 	onloaderror: function(id, err) {
-			 		reject('Can\'t play ' + id + ': ' + err);
-			 	}
-			});
-    }
-  })
-}
-
-function playLoop(filePrefix, fileNumMin, fileNumMax) {
-  if(!isLooping) {
-  	isLooping = true;
-    playSound(filePrefix, fileNumMin, fileNumMax, true).then(function(msg) {
-      playLoop(filePrefix, fileNumMin, fileNumMax);
-      console.log(msg);
-    })
-    .catch(function(err) {
-      console.log('Error in loop sound: ' + err);
-    });
-  }
-}
-
-function stopLoop() {
-  if(loopedAudio !== undefined && loopedAudio.playing()) {
-  	if(!isFadingLoop) loopedAudio.fade(1, 0, 500);
-  	isFadingLoop = true;
-  }
-}
-
-function playOneShot(filePrefix, fileNumMin, fileNumMax) {
-  if(!isOneShotPlaying) {
-    isOneShotPlaying = true;
-    playSound(filePrefix, fileNumMin, fileNumMax, false).then(function(msg) {
-      console.log(msg);
-      isOneShotPlaying = false;
-    })
-    .catch(function(err) {
-      console.log('Error in one shot sound: ' + err);
-      isOneShotPlaying = false;
-    });
-  }
+    return theState;
 }
 
 // Max is inclusive
 function getRandomInt(min, max) {
-  return min + Math.floor(Math.random() * Math.floor(max + 1));
+    return min + Math.floor(Math.random() * Math.floor(max + 1));
 }
 
 function mapNumber(x, in_min, in_max, out_min, out_max) {
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }

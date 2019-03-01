@@ -7,11 +7,11 @@ let i2cWritePath = __dirname + '/../python/write_i2c.py';
  * Reads data from the ATMega/Tact sensor via I2C
  * @return {Promise} A Promise object, which resolves if data is received, but rejects if anything other happens.
  */
-function i2cRead() {
+function i2cRead(dataSize, offset) {
   // console.log('Connecting to Python');
   return new Promise(function(resolve, reject) {
     var spawn = require('child_process').spawn;
-    var process = spawn('python3', [i2cReadPath]);
+    var process = spawn('/usr/bin/python3', [i2cReadPath, dataSize, offset]);
 
     process.stdout.on('data', function (data) {
       process.kill();
@@ -39,14 +39,14 @@ function i2cRead() {
  * @param  {Number} The data to be written. Can be up to 32 bytes, but preferably less.
  * @return {Promise} A Promise object, which resolves when we receive data and rejects if we receive an error
  */
-function i2cWrite(data) {
+function i2cWrite(data, offset, arr) {
   return new Promise(function(resolve, reject) {
     var spawn = require('child_process').spawn;
-    var process = spawn('python3', [i2cWritePath, data]);
+    var process = spawn('/usr/bin/python3', [i2cWritePath, data, offset, arr]);
 
     process.stdout.on('data', function (msg) {
       process.kill();
-      console.log('Successfully connected to i2cWrite.');
+      console.log('Successfully connected to i2cWrite');
       resolve(msg);
     });
 
