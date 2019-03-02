@@ -1,20 +1,24 @@
 // Includes
 const brain = require('brain.js');
 const fs = require('fs');
+var plot = require('plotter').plot;
+const noise = require('noisejs');
+
+let db = require('./db');
+let ObjectId = require('mongodb').ObjectID;
 
 // Where do we keep our training data and old brains?
 var trainLoc = __dirname + '/../brain_data/data.json';
 var brainLoc = __dirname + '/../brain_data/brain.json';
 
-var trainingData = [], parsedTrainingData;
-
 // Our configurations for the training part of the network
 const trainConfig = {
 	// log : details => console.log(details), // Uncomment this line, if you want to get updates on the training
+	// logPeriod : 100,
 	errorThresh : 0.01, // Stop training, if we reach an error rate of this much
 	learningRate : 0.1, // Higher rate means faster learning, but less accurate and more error prone
 	iterations : 5000, // Stop training, if we go through this many iterations
-	timeout : 5000 // Stop training after this amount of milliseconds
+	timeout : 7500 // Stop training after this amount of milliseconds
 };
 
 const netConfig = {
@@ -23,7 +27,18 @@ const netConfig = {
 };
 
 // Setup a new neural network
-const net = new brain.NeuralNetwork(netConfig);
+let net = new brain.NeuralNetwork(netConfig);
+let brainTrained = false;
+
+ // CONNECT TO MONGO 
+let dbo = null; // The database object
+let url = 'mongodb://localhost:27017/';
+let dbName = 'semeionBrain'; // Our database's name
+let collName = 'brainData'; // Our database collection's name
+
+let noiseSeed = 6705;
+let noiseGen = new noise.Noise(noiseSeed);
+let x = 0.5, y = 0.5;
 
 /**
  * Reads the training data, and then trains the neural network. Will attempt to continue with an old brain, if it's available
@@ -31,94 +46,92 @@ const net = new brain.NeuralNetwork(netConfig);
  */
 function readDataAndTrain() {
 	return new Promise(function(resolve, reject) {
-		readSettings().then(function(res) {
-			// Read a saved brain if we have it
-			readJSONFile(brainLoc).then(function(brainJSON) {
+		getParsedSettings().then((res) => {
+			if(!brainTrained) {
+				readJSONFile(brainLoc).then(function(brainJSON) {
+					// We have read the brain file, so let's load it into the network
+					net.fromJSON(brainJSON);
 
-				// We have read the brain file, so let's load it into the network
-				net.fromJSON(brainJSON);
-
-				// Train the old brain
-				trainNet().then(function(dat) {
-					console.log(dat);
-					resolve('Done with training from an old brain');
+					// Train the old brain
+					trainNet(res).then(function(dat) {
+						// console.log(dat);
+						resolve('Done with training from an old brain');
+					}).catch(function(err) {
+						console.error(err);
+						reject(err);
+					});
+					brainTrained = true;
 				}).catch(function(err) {
-					console.error(err);
-					reject(err);
-				});
-			}).catch(function(err) {
 
-				console.error(err);
-				// Train a new brain, since we didn't find one
-				trainNet().then(function(dat) {
-					console.log(dat);
+					console.log(err);
+					// Train a new brain, since we didn't find one
+					trainNet(res).then(function(dat) {
+						// console.log(dat);
+						resolve('Done with training from a new brain');
+					}).catch(function(err) {
+						console.error(err);
+						reject(err);
+					});
+				});
+			}
+			else {
+				trainNet(res).then(function(dat) {
 					resolve('Done with training from a new brain');
 				}).catch(function(err) {
 					console.error(err);
 					reject(err);
 				});
-			});
-		}).catch(function(err) {
-			console.error(err);
+			}
+		}).catch((err) => {
+			// console.log(err);
+			reject(err);
 		});
 	})
 }
 
+// Not this function in itself
 function startTraining() {
-	console.log('Starting to train brain.');
+	// console.log('Starting to train brain.');
 	return new Promise(function(resolve, reject) {
-		if(trainingData.length <= 1) {
-			readDataAndTrain().then(function(res) {
-				resolve(res);
-			}).catch(function(err) {
-				reject(err);
-			});
-		}
-		else {
-			// Train the old brain
-			trainNet().then(function(dat) {
-				resolve('Done with training from an old brain');
-			}).catch(function(err) {
-				console.error(err);
-				reject(err);
-			});
-		}
+		readDataAndTrain().then(function(res) {
+			// console.log(res);
+			resolve(res);
+		}).catch(function(err) {
+			reject(err);
+		});
 	});
 }
 
 function writeSettings(newSettings) {
 	return new Promise(function(resolve, reject) {
-		readSettings().then(function(msg) {
-			resolve(msg);
-		}).catch(function(error) {
-			reject(error);
-		}).then(function() {
-			trainingData.push(newSettings);
-			writeJSONFile(trainLoc, trainingData).then(function(res) {
-				resolve(res);
-			}).catch(function(err) {
-				reject(err);
-			});
-		});
+		try {
+			if(dbo !== null) {
+				dbo.collection(collName).insertOne(newSettings, function(err, res) {
+			    if (err) throw err;
+			    resolve(res);
+			  });
+			} 
+			else {
+				throw new Error('Dbo is null!');
+			}
+		} catch(err) {
+			reject(err);
+		}
 	});
 }
 
-function readSettings() {
-	return new Promise(function(resolve, reject) {
-		readJSONFile(trainLoc).then(function(res) {
-
-			// save the raw data in a variable
-			trainingData = res;
-
-			// Parse the training data so that it's ready for training
-			parsedTrainingData = parseData(trainingData);
-
-			resolve('Successfully read training data.');
-
-		}).catch(function(err) {
-			console.error(err);
+function getParsedSettings() {
+	return new Promise((resolve, reject) => {
+		try {
+			dbo.collection(collName).find({}).toArray((err, result) => {
+				if (err) throw err;
+				result = parseData(result);
+				// console.log('Settings length: ' + result.length);
+				resolve(result);
+			})
+		} catch(err) {
 			reject(err);
-		});
+		}
 	});
 }
 
@@ -129,7 +142,6 @@ function readSettings() {
 function runNet() {
 	var time = 1.0;
 	var output = net.run({"time" : time});
-	console.log(output);
 	return output;
 }
 
@@ -153,20 +165,19 @@ function runNetWithSettings(sett) {
  * Trains the neural network and saves the neural network to a JSON file
  * @return {Promise} A Promise that resolves no matter if the brain is saved or not.
  */
-function trainNet() {
+let trainNetPath = __dirname + '/train_net.js';
+function trainNet(theData) {
 	return new Promise(function(resolve, reject) {
-		net.trainAsync(parsedTrainingData, trainConfig).then(function(res) {
-			fs.writeFile(brainLoc, JSON.stringify(net.toJSON()), (err) => {
-				if(err) {
-					console.error(err);
-					resolve('Brain wasn\'t saved. Check error message');
-				}
-				else {
-					resolve('Brain was saved.');
-				}
-			});
-		}).catch(function(error) {
-			reject(error);
+		// SYNC
+		net.train(theData, trainConfig);
+		fs.writeFile(brainLoc, JSON.stringify(net.toJSON()), (err) => {
+			if(err) {
+				console.error(err);
+				resolve('Brain wasn\'t saved. Check error message');
+			}
+			else {
+				resolve('Brain was saved.');
+			}
 		});
 	})
 }
@@ -232,12 +243,14 @@ function parseData(data) {
 		// Go through all properties and parse them accordingly as input or output
 		for(var p in data[i]) {
 	    if(data[i].hasOwnProperty(p)) {
-	      if(p !== "time") {
-	      	newObj.input[p] = data[i][p];
-	      }
-	      else {
-	      	newObj.output[p] = data[i][p];
-	      }
+	    	if(p !== "_id") {
+	    		if(p !== "time") {
+	    			newObj.input[p] = data[i][p];
+	    		}
+	    		else {
+	    			newObj.output[p] = data[i][p];
+	    		}
+	    	}
 	    }
 	  }
 		newData.push(newObj);
@@ -246,9 +259,151 @@ function parseData(data) {
 	return newData;
 }
 
-module.exports = {
-  startTraining,
-  writeSettings,
-  runNet,
-  runNetWithSettings
+function plotData() {
+	// TODO: This part doesn't seem to work all that well right now. Plots seem unfinished.
+	return new Promise((resolve, reject) => {
+		try {
+			dbo.collection(collName).find({}).toArray((err, result) => {
+				if (err) throw err;
+				let plotHueData = [], plotSatData = [];
+				for(let i = 0; i < result.length; i++) {
+					plotHueData.push(parseFloat(result[i].baseHue));
+					plotSatData.push(parseFloat(result[i].baseSat));
+				}
+
+				try {
+					plot({
+						data: { 
+							'Hue' : plotHueData,
+							'Sat' : plotSatData
+						},
+						filename: 'ml_analysis/' + trainConfig.learningRate + '-' + netConfig.hiddenLayers.toString() + '-' + netConfig.activation + '/time-based-noise.pdf',
+						format: 'pdf',
+						moving_avg:	10,
+						xlabel: 'Iterations',
+						title: 'S: ' + noiseSeed + ',  TO: ' + trainConfig.timeout + ', LR: ' + trainConfig.learningRate + ', HL: ' + netConfig.hiddenLayers.toString() + ', AC: ' + netConfig.activation
+					});
+					console.log('Saved plot as: ml_analysis/' + trainConfig.learningRate + '-' + netConfig.hiddenLayers.toString() + '-' + netConfig.activation + '/time-based-noise.pdf');
+					console.log('Settings length: ' + result.length);
+					resolve(result);
+				} catch(err) {
+					console.error("Plot error: " + err);
+					reject(err);
+				}
+			})
+		} catch(err) {
+			reject(err);
+		}
+	});
 }
+
+// Connect to the database and set the database object
+db.connect(url, function(err) {
+    if(err) {
+        console.error('Could not connect to database');
+        console.error('Error: ' + err);
+        process.exit(-1);
+        return;
+    }
+    // console.log('Connected to Mongo');
+
+    try {
+    	dbo = db.get(dbName);
+    	// console.log('Found the database');
+
+    	if(process.argv[2] === 'train') {
+    		if(process.argv[3] !== undefined) {
+		  		let newSettings = JSON.parse(process.argv[3].toString());
+		  		
+		  		if(process.argv[4] !== undefined) {
+		  			noiseGen.seed(parseInt(process.argv[4]));
+		  		}
+
+		  		writeSettings(newSettings)
+		  		.then((result) => {
+		  			// console.log(result.result);
+		  			startTraining().then((res) => {
+							let result = runNetWithSettings(newSettings);
+
+							let theNoise, counter = 1;
+
+							for(var p in newSettings) {
+						    if(newSettings.hasOwnProperty(p) && p !== '_id') {
+						    	theNoise = noiseGen.perlin2(x, 100 + y * counter);
+						    	let moveBy = ((1 - result.time) * theNoise) / 5;
+						    	let newVal = newSettings[p] + moveBy;
+						    	newVal = Math.min(Math.max(newVal, 0), 1);
+						      newSettings[p] = newVal;
+						      counter++;
+						    }
+						  }
+
+						  db.close();
+						  // Return data to main process
+						  let endString = 'Final: ';
+						  console.log(endString + JSON.stringify(newSettings));
+		  			}).catch((err) => {
+		  				console.error(err);
+		  			})
+		  		})
+		  		.catch((err) => {
+		  			console.error(err);
+		  		});
+    		}
+    		else {
+    			console.error('\x1b[31m%s\x1b[0m', 'newSettings should be the third argument.');
+    			process.exit(-3)
+    		}
+    	}
+    	else if(process.argv[2] === 'delete') {
+    		// Get confirmation in red colored console log
+    		// Source: https://stackoverflow.com/questions/9781218/how-to-change-node-jss-console-font-color
+    		console.log('\x1b[31m%s\x1b[0m', '------------------------------------------------------------------------------------');
+    		console.log('\x1b[31m%s\x1b[0m', 'Are you sure you want to delete the collection and the brain? Type \'yes\' to confirm.'.toUpperCase());
+    		console.log('\x1b[31m%s\x1b[0m', '------------------------------------------------------------------------------------');
+
+    		var standard_input = process.stdin;
+    		standard_input.setEncoding('utf-8');
+    		standard_input.on('data', (data) => {
+    			data = data.toString().trim();
+    			if(data.toUpperCase() == 'YES') {
+    				try {
+			    		fs.writeFile(brainLoc, '', (err) => {
+			    			if(err) {
+			    				throw err;
+			    				process.exit(-5);
+			    			}
+								else {
+									console.log('Deleted the brain.')
+					    		dbo.collection(collName).drop(function(err, delOK) {
+						  	    if (err) throw err;
+						  	    if (delOK) console.log('Collection deleted');
+						  	    db.close();
+						  	    process.exit(100);
+						  	  });
+								}
+			    		});
+    				} catch(err) {
+    					console.error(err);
+    					process.exit(-55);
+    				}
+    			}
+    			else {
+    				process.exit(100);
+    			}
+    		})
+    	}
+    	else if(process.argv[2] === 'plot') {
+    		plotData().then((res) => {
+    			db.close();
+    			process.exit(101);
+    		}).catch((err) => {
+    			console.error(err);
+    			db.close();
+    			process.exit(-1);
+    		})
+    	}
+    } catch(err) {
+    	console.error(err);
+    }
+});
