@@ -28,7 +28,7 @@ let i2cWriteRetries = 0;
 
 let getSettingsInterval;
 let trainingBrain = false;
-const getSettingsIntervalTime = 750;
+const getSettingsIntervalTime = 2000;
 
 // Express Server Calls
 app.use(express.static(__dirname + '/public'));
@@ -80,7 +80,6 @@ if(!checkClimaxInterval) {
 if(!getSettingsInterval) {
   getSettingsInterval = setInterval(() => {
     getSettings().then((dat) => {
-      console.log(JSON.parse(dat.toString()));
       let i2cSettings = settingsToI2C(JSON.parse(dat.toString()));
       console.log("Our new settings are: " + i2cSettings);
       // writeThisToI2C(0, 95, i2cSettings);
@@ -136,11 +135,12 @@ function getSettings() {
             let nodePath = res;
 
             var spawn = require('child_process').spawn;
+            console.log('Starting training!');
             var process = spawn(nodePath, [mlPath, 'train', JSON.stringify(newSettings)]);
 
             process.stdout.on('data', function (data) {
               console.log('Got some data: ' + data);
-              if(data.includes('{ time')) {
+              if(data.includes('{"time"')) {
                 process.kill();
                 resolve(data);
               }
@@ -168,23 +168,6 @@ function getSettings() {
       // })
     }
   });
-}
-
-function trainBrain() {
-  if(!trainingBrain) {
-    trainingBrain = true;
-    
-    ml.startTraining().then(function(msg) {
-      let newSettings = ml.runNet();
-      let i2cSettings = settingsToI2C(newSettings);
-      console.log("Our new settings are: " + i2cSettings);
-      writeThisToI2C(0, 95, i2cSettings);
-      trainingBrain = false;
-    }).catch(function(err) {
-      console.log(err);
-      trainingBrain = false;
-    });
-  }
 }
 
 /**
@@ -315,6 +298,7 @@ stdin.addListener('data', function(d) {
   let msg = [120, false, false, false, false, false, utility.getRandomInt(0, 255), utility.getRandomInt(0, 255)];
   if(string === 'climax') {
     msg[1] = true;
+    console.log('Sending climax!');
     io.emit('state', msg);
     sendStateUpdate(msg);
   }

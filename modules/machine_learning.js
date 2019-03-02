@@ -11,12 +11,12 @@ var brainLoc = __dirname + '/../brain_data/brain.json';
 
 // Our configurations for the training part of the network
 const trainConfig = {
-	// log : details => console.log(details), // Uncomment this line, if you want to get updates on the training
+	log : details => console.log(details), // Uncomment this line, if you want to get updates on the training
 	logPeriod : 100,
 	errorThresh : 0.01, // Stop training, if we reach an error rate of this much
 	learningRate : 0.1, // Higher rate means faster learning, but less accurate and more error prone
 	iterations : 5000, // Stop training, if we go through this many iterations
-	timeout : 500 // Stop training after this amount of milliseconds
+	timeout : 1500 // Stop training after this amount of milliseconds
 };
 
 const netConfig = {
@@ -49,14 +49,13 @@ db.connect(url, function(err) {
     	console.log('Found the database');
     	if(process.argv[2] === 'train') {
     		let newSettings = JSON.parse(process.argv[3].toString());
-    		console.log(newSettings);
+    		// console.log(newSettings);
     		writeSettings(newSettings)
     		.then((result) => {
     			// console.log(result.result);
     			startTraining().then((res) => {
     				// console.log(res);
-    				// console.log(runNet());
-    				console.log(runNetWithSettings(newSettings));
+    				console.log(JSON.stringify(runNetWithSettings(newSettings)));
     			}).catch((err) => {
     				console.error(err);
     			})
