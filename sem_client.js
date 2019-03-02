@@ -9,7 +9,7 @@ const mqtt_service = require('./modules/mqtt_service');
 const i2c = require('./modules/i2c_connect');
 const audio = require('./modules/audio');
 const utility = require('./modules/utility');
-const ml = require('./modules/machine_learning');
+// const ml = require('./modules/machine_learning');
 let stdin = process.openStdin();
 const dns = require('dns');
 
@@ -28,7 +28,7 @@ let i2cWriteRetries = 0;
 
 let getSettingsInterval;
 let trainingBrain = false;
-const getSettingsIntervalTime = 300;
+const getSettingsIntervalTime = 750;
 
 // Express Server Calls
 app.use(express.static(__dirname + '/public'));
@@ -74,11 +74,20 @@ server.listen(port, function() {
 });
 
 if(!checkClimaxInterval) {
-  checkClimaxInterval = setInterval(checkClimaxUpdate, checkClimaxIntervalTime);
+  // checkClimaxInterval = setInterval(checkClimaxUpdate, checkClimaxIntervalTime);
 }
 
 if(!getSettingsInterval) {
-  getSettingsInterval = setInterval(getSettings, getSettingsIntervalTime);
+  getSettingsInterval = setInterval(() => {
+    getSettings().then((dat) => {
+      console.log(JSON.parse(dat.toString()));
+      let i2cSettings = settingsToI2C(JSON.parse(dat.toString()));
+      console.log("Our new settings are: " + i2cSettings);
+      // writeThisToI2C(0, 95, i2cSettings);
+    }).catch((err) => {
+      console.error(err);
+    });
+  }, getSettingsIntervalTime);
 }
 
 // Get the IP of the server from it's hostname (defined in configs)
@@ -106,35 +115,65 @@ function lookupServerIp() {
 /**
  * Attemps to read the i2c status, and calls MQTT to send out a potential climax
  */
+let mlPath = __dirname + '/modules/machine_learning.js';
 function getSettings() {
-  if(shouldUseI2C === '1') {
-    i2c.i2cRead(8, 98).then(function(msg) {
-      // Convert the received buffer to an array
-      let unoMsg = JSON.parse(msg);
-      // console.log(unoMsg);
+  return new Promise((resolve, reject) => {
+    if(shouldUseI2C === '1') {
+      // i2c.i2cRead(8, 98).then(function(msg) {
+        // Convert the received buffer to an array
+        let msg = [120];
+        msg.push(utility.getRandomInt(0, 255));
+        msg.push(utility.getRandomInt(0, 255));
+        msg.push(0);
+        msg.push(utility.getRandomInt(0, 255));
+        // let unoMsg = JSON.parse(msg);
+        let unoMsg = msg;
 
-      // The first index is the climax state
-      if(unoMsg[0] === 120) {
-        let newSettings = I2CToSettings(unoMsg);
-        ml.writeSettings(newSettings).then(function(res) {
-          trainBrain();
-        }).catch(function(err) {
-          console.error(err);
-        });
-      }
-    })
-    .catch(function(error) {
-      // These errors are common, so no need to print
-      if(!error.message.includes('OSError')) {
-        console.log(error.message);
-      }
-    });
-  }
+        // The first index is the climax state
+        if(unoMsg[0] === 120) {
+          let newSettings = I2CToSettings(unoMsg);
+          utility.getAppPath('node').then((res) => {
+            let nodePath = res;
+
+            var spawn = require('child_process').spawn;
+            var process = spawn(nodePath, [mlPath, 'train', JSON.stringify(newSettings)]);
+
+            process.stdout.on('data', function (data) {
+              console.log('Got some data: ' + data);
+              if(data.includes('{ time')) {
+                process.kill();
+                resolve(data);
+              }
+            });
+
+            process.stderr.on('data', (err) => {
+              if(!err.includes('DeprecationWarning')) {
+                process.kill();
+                reject('getSettings gave off an error: ' + err);
+              }
+              else {
+                // reject('');
+              }
+            });
+
+            process.on('close', (code) => {
+              resolve('getSettings was closed with this code: ' + code);
+            });
+
+            process.on('error', (err) => {
+              reject(Error('An error occured with getSettings: ' + err));
+            });
+          });
+        }
+      // })
+    }
+  });
 }
 
 function trainBrain() {
   if(!trainingBrain) {
     trainingBrain = true;
+    
     ml.startTraining().then(function(msg) {
       let newSettings = ml.runNet();
       let i2cSettings = settingsToI2C(newSettings);

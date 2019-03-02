@@ -9,11 +9,9 @@ let ObjectId = require('mongodb').ObjectID;
 var trainLoc = __dirname + '/../brain_data/data.json';
 var brainLoc = __dirname + '/../brain_data/brain.json';
 
-// var trainingData = [], parsedTrainingData;
-
 // Our configurations for the training part of the network
 const trainConfig = {
-	log : details => console.log(details), // Uncomment this line, if you want to get updates on the training
+	// log : details => console.log(details), // Uncomment this line, if you want to get updates on the training
 	logPeriod : 100,
 	errorThresh : 0.01, // Stop training, if we reach an error rate of this much
 	learningRate : 0.1, // Higher rate means faster learning, but less accurate and more error prone
@@ -30,30 +28,8 @@ const netConfig = {
 let net = new brain.NeuralNetwork(netConfig);
 let brainTrained = false;
 
-setInterval(() => {
-	startTraining().then((res) => {
-		console.log(res);
-		let newSettings = {
-			baseHue : Math.random(),
-			baseSat : Math.random(),
-			time : Math.random()
-		};
-
-		writeSettings(newSettings).then((result) => {
-			console.log(result.result);
-		}).catch((err) => {
-			console.log(err);
-		})
-		// trainingData.push(newSettings);
-		// if(dbo !== null) dbo.collection(collName).insertOne(newSettings);
-
-	}).catch((err) => {
-		console.error(err);
-	});
-}, trainConfig.timeout * 1.1)
-
  // CONNECT TO MONGO 
-let dbo; // The database object
+let dbo = null; // The database object
 let url = 'mongodb://localhost:27017/';
 let dbName = 'semeionBrain'; // Our database's name
 let collName = 'brainData'; // Our database collection's name
@@ -71,8 +47,26 @@ db.connect(url, function(err) {
     try {
     	dbo = db.get(dbName);
     	console.log('Found the database');
+    	if(process.argv[2] === 'train') {
+    		let newSettings = JSON.parse(process.argv[3].toString());
+    		console.log(newSettings);
+    		writeSettings(newSettings)
+    		.then((result) => {
+    			// console.log(result.result);
+    			startTraining().then((res) => {
+    				// console.log(res);
+    				// console.log(runNet());
+    				console.log(runNetWithSettings(newSettings));
+    			}).catch((err) => {
+    				console.error(err);
+    			})
+    		})
+    		.catch((err) => {
+    			console.error(err);
+    		});
+    	}
     } catch(err) {
-    	console.log(err);
+    	console.error(err);
     }
 });
 
@@ -83,22 +77,14 @@ db.connect(url, function(err) {
 function readDataAndTrain() {
 	return new Promise(function(resolve, reject) {
 		getParsedSettings().then((res) => {
-
-			console.log(res.length);
-			resolve('');
-
-			// Not really this part. Slightly.
 			if(!brainTrained) {
-				console.log("Brain trained: " + brainTrained);
-				// Ikke rigtigt den her del. Lidt måske.
 				readJSONFile(brainLoc).then(function(brainJSON) {
-					console.log('found old brain');
 					// We have read the brain file, so let's load it into the network
 					net.fromJSON(brainJSON);
 
 					// Train the old brain
 					trainNet(res).then(function(dat) {
-						console.log(dat);
+						// console.log(dat);
 						resolve('Done with training from an old brain');
 					}).catch(function(err) {
 						console.error(err);
@@ -110,7 +96,7 @@ function readDataAndTrain() {
 					console.error(err);
 					// Train a new brain, since we didn't find one
 					trainNet(res).then(function(dat) {
-						console.log(dat);
+						// console.log(dat);
 						resolve('Done with training from a new brain');
 					}).catch(function(err) {
 						console.error(err);
@@ -119,9 +105,7 @@ function readDataAndTrain() {
 				});
 			}
 			else {
-				console.log("Brain trained: " + brainTrained);
 				trainNet(res).then(function(dat) {
-					console.log(dat);
 					resolve('Done with training from a new brain');
 				}).catch(function(err) {
 					console.error(err);
@@ -129,7 +113,7 @@ function readDataAndTrain() {
 				});
 			}
 		}).catch((err) => {
-			console.log(err);
+			// console.log(err);
 			reject(err);
 		});
 	})
@@ -137,10 +121,10 @@ function readDataAndTrain() {
 
 // Not this function in itself
 function startTraining() {
-	console.log('Starting to train brain.');
+	// console.log('Starting to train brain.');
 	return new Promise(function(resolve, reject) {
 		readDataAndTrain().then(function(res) {
-			console.log(res);
+			// console.log(res);
 			resolve(res);
 		}).catch(function(err) {
 			reject(err);
@@ -166,13 +150,13 @@ function writeSettings(newSettings) {
 	});
 }
 
-// Not really this function
 function getParsedSettings() {
 	return new Promise((resolve, reject) => {
 		try {
 			dbo.collection(collName).find({}).toArray((err, result) => {
 				if (err) throw err;
 				result = parseData(result);
+				// console.log('Settings length: ' + result.length);
 				resolve(result);
 			})
 		} catch(err) {
@@ -211,23 +195,20 @@ function runNetWithSettings(sett) {
  * Trains the neural network and saves the neural network to a JSON file
  * @return {Promise} A Promise that resolves no matter if the brain is saved or not.
  */
+let trainNetPath = __dirname + '/train_net.js';
 function trainNet(theData) {
 	return new Promise(function(resolve, reject) {
-		resolve('Yo joe');
-		/*net.trainAsync(theData, trainConfig).then(function(res) {
-			console.log(res);
-			fs.writeFile(brainLoc, JSON.stringify(net.toJSON()), (err) => {
-				if(err) {
-					console.error(err);
-					resolve('Brain wasn\'t saved. Check error message');
-				}
-				else {
-					resolve('Brain was saved.');
-				}
-			});
-		}).catch(function(error) {
-			reject(error);
-		});*/
+		// SYNC
+		net.train(theData, trainConfig);
+		fs.writeFile(brainLoc, JSON.stringify(net.toJSON()), (err) => {
+			if(err) {
+				console.error(err);
+				resolve('Brain wasn\'t saved. Check error message');
+			}
+			else {
+				resolve('Brain was saved.');
+			}
+		});
 	})
 }
 
@@ -306,11 +287,4 @@ function parseData(data) {
 	}
 
 	return newData;
-}
-
-module.exports = {
-  startTraining,
-  writeSettings,
-  runNet,
-  runNetWithSettings
 }
