@@ -1,6 +1,8 @@
 // Includes
 const brain = require('brain.js');
 const fs = require('fs');
+var plot = require('plotter').plot;
+const noise = require('noisejs');
 
 let db = require('./db');
 let ObjectId = require('mongodb').ObjectID;
@@ -11,12 +13,12 @@ var brainLoc = __dirname + '/../brain_data/brain.json';
 
 // Our configurations for the training part of the network
 const trainConfig = {
-	log : details => console.log(details), // Uncomment this line, if you want to get updates on the training
-	logPeriod : 100,
+	// log : details => console.log(details), // Uncomment this line, if you want to get updates on the training
+	// logPeriod : 100,
 	errorThresh : 0.01, // Stop training, if we reach an error rate of this much
 	learningRate : 0.1, // Higher rate means faster learning, but less accurate and more error prone
 	iterations : 5000, // Stop training, if we go through this many iterations
-	timeout : 1500 // Stop training after this amount of milliseconds
+	timeout : 7500 // Stop training after this amount of milliseconds
 };
 
 const netConfig = {
@@ -34,40 +36,9 @@ let url = 'mongodb://localhost:27017/';
 let dbName = 'semeionBrain'; // Our database's name
 let collName = 'brainData'; // Our database collection's name
 
-// Connect to the database and set the database object
-db.connect(url, function(err) {
-    if(err) {
-        console.log('Could not connect to database');
-        console.log('Error: ' + err);
-        process.exit(1);
-        return;
-    }
-    console.log('Connected to Mongo');
-
-    try {
-    	dbo = db.get(dbName);
-    	console.log('Found the database');
-    	if(process.argv[2] === 'train') {
-    		let newSettings = JSON.parse(process.argv[3].toString());
-    		// console.log(newSettings);
-    		writeSettings(newSettings)
-    		.then((result) => {
-    			// console.log(result.result);
-    			startTraining().then((res) => {
-    				// console.log(res);
-    				console.log(JSON.stringify(runNetWithSettings(newSettings)));
-    			}).catch((err) => {
-    				console.error(err);
-    			})
-    		})
-    		.catch((err) => {
-    			console.error(err);
-    		});
-    	}
-    } catch(err) {
-    	console.error(err);
-    }
-});
+let noiseSeed = 6705;
+let noiseGen = new noise.Noise(noiseSeed);
+let x = 0.5, y = 0.5;
 
 /**
  * Reads the training data, and then trains the neural network. Will attempt to continue with an old brain, if it's available
@@ -92,7 +63,7 @@ function readDataAndTrain() {
 					brainTrained = true;
 				}).catch(function(err) {
 
-					console.error(err);
+					console.log(err);
 					// Train a new brain, since we didn't find one
 					trainNet(res).then(function(dat) {
 						// console.log(dat);
@@ -287,3 +258,152 @@ function parseData(data) {
 
 	return newData;
 }
+
+function plotData() {
+	// TODO: This part doesn't seem to work all that well right now. Plots seem unfinished.
+	return new Promise((resolve, reject) => {
+		try {
+			dbo.collection(collName).find({}).toArray((err, result) => {
+				if (err) throw err;
+				let plotHueData = [], plotSatData = [];
+				for(let i = 0; i < result.length; i++) {
+					plotHueData.push(parseFloat(result[i].baseHue));
+					plotSatData.push(parseFloat(result[i].baseSat));
+				}
+
+				try {
+					plot({
+						data: { 
+							'Hue' : plotHueData,
+							'Sat' : plotSatData
+						},
+						filename: 'ml_analysis/' + trainConfig.learningRate + '-' + netConfig.hiddenLayers.toString() + '-' + netConfig.activation + '/time-based-noise.pdf',
+						format: 'pdf',
+						moving_avg:	10,
+						xlabel: 'Iterations',
+						title: 'S: ' + noiseSeed + ',  TO: ' + trainConfig.timeout + ', LR: ' + trainConfig.learningRate + ', HL: ' + netConfig.hiddenLayers.toString() + ', AC: ' + netConfig.activation
+					});
+					console.log('Saved plot as: ml_analysis/' + trainConfig.learningRate + '-' + netConfig.hiddenLayers.toString() + '-' + netConfig.activation + '/time-based-noise.pdf');
+					console.log('Settings length: ' + result.length);
+					resolve(result);
+				} catch(err) {
+					console.error("Plot error: " + err);
+					reject(err);
+				}
+			})
+		} catch(err) {
+			reject(err);
+		}
+	});
+}
+
+// Connect to the database and set the database object
+db.connect(url, function(err) {
+    if(err) {
+        console.error('Could not connect to database');
+        console.error('Error: ' + err);
+        process.exit(-1);
+        return;
+    }
+    // console.log('Connected to Mongo');
+
+    try {
+    	dbo = db.get(dbName);
+    	// console.log('Found the database');
+
+    	if(process.argv[2] === 'train') {
+    		if(process.argv[3] !== undefined) {
+		  		let newSettings = JSON.parse(process.argv[3].toString());
+		  		
+		  		if(process.argv[4] !== undefined) {
+		  			noiseGen.seed(parseInt(process.argv[4]));
+		  		}
+
+		  		writeSettings(newSettings)
+		  		.then((result) => {
+		  			// console.log(result.result);
+		  			startTraining().then((res) => {
+							let result = runNetWithSettings(newSettings);
+
+							let theNoise, counter = 1;
+
+							for(var p in newSettings) {
+						    if(newSettings.hasOwnProperty(p) && p !== '_id') {
+						    	theNoise = noiseGen.perlin2(x, 100 + y * counter);
+						    	let moveBy = ((1 - result.time) * theNoise) / 5;
+						    	let newVal = newSettings[p] + moveBy;
+						    	newVal = Math.min(Math.max(newVal, 0), 1);
+						      newSettings[p] = newVal;
+						      counter++;
+						    }
+						  }
+
+						  db.close();
+						  // Return data to main process
+						  let endString = 'Final: ';
+						  console.log(endString + JSON.stringify(newSettings));
+		  			}).catch((err) => {
+		  				console.error(err);
+		  			})
+		  		})
+		  		.catch((err) => {
+		  			console.error(err);
+		  		});
+    		}
+    		else {
+    			console.error('\x1b[31m%s\x1b[0m', 'newSettings should be the third argument.');
+    			process.exit(-3)
+    		}
+    	}
+    	else if(process.argv[2] === 'delete') {
+    		// Get confirmation in red colored console log
+    		// Source: https://stackoverflow.com/questions/9781218/how-to-change-node-jss-console-font-color
+    		console.log('\x1b[31m%s\x1b[0m', '------------------------------------------------------------------------------------');
+    		console.log('\x1b[31m%s\x1b[0m', 'Are you sure you want to delete the collection and the brain? Type \'yes\' to confirm.'.toUpperCase());
+    		console.log('\x1b[31m%s\x1b[0m', '------------------------------------------------------------------------------------');
+
+    		var standard_input = process.stdin;
+    		standard_input.setEncoding('utf-8');
+    		standard_input.on('data', (data) => {
+    			data = data.toString().trim();
+    			if(data.toUpperCase() == 'YES') {
+    				try {
+			    		fs.writeFile(brainLoc, '', (err) => {
+			    			if(err) {
+			    				throw err;
+			    				process.exit(-5);
+			    			}
+								else {
+									console.log('Deleted the brain.')
+					    		dbo.collection(collName).drop(function(err, delOK) {
+						  	    if (err) throw err;
+						  	    if (delOK) console.log('Collection deleted');
+						  	    db.close();
+						  	    process.exit(100);
+						  	  });
+								}
+			    		});
+    				} catch(err) {
+    					console.error(err);
+    					process.exit(-55);
+    				}
+    			}
+    			else {
+    				process.exit(100);
+    			}
+    		})
+    	}
+    	else if(process.argv[2] === 'plot') {
+    		plotData().then((res) => {
+    			db.close();
+    			process.exit(101);
+    		}).catch((err) => {
+    			console.error(err);
+    			db.close();
+    			process.exit(-1);
+    		})
+    	}
+    } catch(err) {
+    	console.error(err);
+    }
+});
