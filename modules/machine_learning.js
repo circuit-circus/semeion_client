@@ -18,7 +18,7 @@ const trainConfig = {
 	errorThresh : 0.01, // Stop training, if we reach an error rate of this much
 	learningRate : 0.1, // Higher rate means faster learning, but less accurate and more error prone
 	iterations : 5000, // Stop training, if we go through this many iterations
-	timeout : 7500 // Stop training after this amount of milliseconds
+	timeout : 30000 // Stop training after this amount of milliseconds
 };
 
 const netConfig = {

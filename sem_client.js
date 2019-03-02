@@ -27,7 +27,7 @@ let i2cWriteRetries = 0;
 
 let getSettingsInterval;
 let trainingBrain = false;
-const getSettingsIntervalTime = 1100;
+const getSettingsIntervalTime = 60000;
 
 let mlPath = __dirname + '/modules/machine_learning.js';
 let spoofedSettings = [];
