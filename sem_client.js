@@ -24,6 +24,7 @@ let isClimaxing = false;
 
 const i2cWriteRetriesMax = 10;
 let i2cWriteRetries = 0;
+let shouldSpoofI2C = false;
 
 let getSettingsInterval;
 let trainingBrain = false;
