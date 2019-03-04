@@ -2,6 +2,8 @@
 let port = 8000;
 let configs = require('./configs.js');
 
+let shouldSpoofI2C = false;
+
 checkForCommandlineArguments();
 
 const mqtt_service = require('./modules/mqtt_service');
@@ -24,7 +26,6 @@ let isClimaxing = false;
 
 const i2cWriteRetriesMax = 10;
 let i2cWriteRetries = 0;
-let shouldSpoofI2C = false;
 
 let getSettingsInterval;
 let trainingBrain = false;
