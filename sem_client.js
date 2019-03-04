@@ -29,7 +29,7 @@ let i2cWriteRetries = 0;
 
 let getSettingsInterval;
 let trainingBrain = false;
-const getSettingsIntervalTime = 60000;
+const getSettingsIntervalTime = 300;
 
 let mlPath = __dirname + '/modules/machine_learning.js';
 let spoofedSettings = [];
@@ -116,20 +116,25 @@ if(!checkClimaxInterval) {
 
 if(!getSettingsInterval) {
   getSettingsInterval = setInterval(() => {
-    getSettings().then((dat) => {
-      let i2cSettings = settingsToI2C(JSON.parse(dat.toString()));
-      console.log(new Date().toTimeString() + ": Our new settings are: \x1b[35m" + i2cSettings + '\x1b[0m');
-      // If we're for real, write the new settings to i2c
-      if(!shouldSpoofI2C) {
-        writeThisToI2C(0, 95, i2cSettings);
-      }
-      // Else, let's just save them locally so we use them in our simulations
-      else {
-        spoofedSettings = JSON.parse(JSON.stringify(i2cSettings));
-      }
-    }).catch((err) => {
-      console.error(err);
-    });
+    if(!trainingBrain) {
+      trainingBrain = true;
+      getSettings().then((dat) => {
+        let i2cSettings = settingsToI2C(JSON.parse(dat.toString()));
+        console.log(new Date().toTimeString() + ": Our new settings are: \x1b[35m" + i2cSettings + '\x1b[0m');
+        // If we're for real, write the new settings to i2c
+        if(!shouldSpoofI2C) {
+          writeThisToI2C(0, 95, i2cSettings);
+        }
+        // Else, let's just save them locally so we use them in our simulations
+        else {
+          spoofedSettings = JSON.parse(JSON.stringify(i2cSettings));
+        }
+        trainingBrain = false;
+      }).catch((err) => {
+        console.error(err);
+        trainingBrain = false;
+      });
+    }
   }, getSettingsIntervalTime);
 }
 
@@ -227,13 +232,15 @@ function spawnMLProcess(msg) {
             datString = datString.substring(endString.length);
             resolve(datString);
           }
-          else {
-            console.log('Got some data: \x1b[36m' + data + '\x1b[0m');
+          // This error is common, so no need to log it
+          else if(!datString.includes("Cannot find module '../build/Release/bson'")) {
+            // console.log('Got some data: \x1b[36m' + data + '\x1b[0m');
           }
         });
 
         process.stderr.on('data', (err) => {
-          if(!err.includes('DeprecationWarning')) {
+          // This error is common, so no need to log it
+          if(!err.includes('DeprecationWarning') && !err.includes('Failed to load c++ bson extension')) {
             process.kill();
             reject('getSettings gave off an error: ' + err);
           }

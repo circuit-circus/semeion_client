@@ -18,7 +18,7 @@ const trainConfig = {
 	errorThresh : 0.01, // Stop training, if we reach an error rate of this much
 	learningRate : 0.1, // Higher rate means faster learning, but less accurate and more error prone
 	iterations : 5000, // Stop training, if we go through this many iterations
-	timeout : 30000 // Stop training after this amount of milliseconds
+	timeout : 1500 // Stop training after this amount of milliseconds
 };
 
 const netConfig = {
@@ -32,7 +32,7 @@ let brainTrained = false;
 
  // CONNECT TO MONGO 
 let dbo = null; // The database object
-let url = 'mongodb://localhost:27017/';
+let mongoURL = 'mongodb://localhost:27017/';
 let dbName = 'semeionBrain'; // Our database's name
 let collName = 'brainData'; // Our database collection's name
 
@@ -107,7 +107,7 @@ function writeSettings(newSettings) {
 		try {
 			if(dbo !== null) {
 				dbo.collection(collName).insertOne(newSettings, function(err, res) {
-			    if (err) throw err;
+			    if (err) console.log(err);
 			    resolve(res);
 			  });
 			} 
@@ -298,10 +298,10 @@ function plotData() {
 }
 
 // Connect to the database and set the database object
-db.connect(url, function(err) {
+db.connect(mongoURL, function(err) {
     if(err) {
-        console.error('Could not connect to database');
-        console.error('Error: ' + err);
+        // console.log('Could not connect to database');
+        // console.log('Error: ' + err);
         process.exit(-1);
         return;
     }
@@ -321,16 +321,16 @@ db.connect(url, function(err) {
 
 		  		writeSettings(newSettings)
 		  		.then((result) => {
-		  			// console.log(result.result);
+		  			// console.log('Successfully wrote settings. Proceeding to train...');
 		  			startTraining().then((res) => {
-							let result = runNetWithSettings(newSettings);
+							let theResult = runNetWithSettings(newSettings);
 
 							let theNoise, counter = 1;
 
 							for(var p in newSettings) {
 						    if(newSettings.hasOwnProperty(p) && p !== '_id') {
 						    	theNoise = noiseGen.perlin2(x, 100 + y * counter);
-						    	let moveBy = ((1 - result.time) * theNoise) / 5;
+						    	let moveBy = ((1 - theResult.time) * theNoise) / 5;
 						    	let newVal = newSettings[p] + moveBy;
 						    	newVal = Math.min(Math.max(newVal, 0), 1);
 						      newSettings[p] = newVal;
@@ -374,7 +374,8 @@ db.connect(url, function(err) {
 			    				process.exit(-5);
 			    			}
 								else {
-									console.log('Deleted the brain.')
+									console.log('Deleted the brain.');
+									process.exit(100);
 								}
 			    		});
     				} catch(err) {
@@ -425,6 +426,10 @@ db.connect(url, function(err) {
     			db.close();
     			process.exit(-1);
     		})
+    	}
+    	else {
+    		console.log('No proper arguments were given. Try \'train\', \'brain-delete\', \'data-delete\', or \'plot\'.');
+    		process.exit(10);
     	}
     } catch(err) {
     	console.error(err);
