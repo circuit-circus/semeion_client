@@ -355,11 +355,11 @@ db.connect(url, function(err) {
     			process.exit(-3)
     		}
     	}
-    	else if(process.argv[2] === 'delete') {
+    	else if(process.argv[2] === 'brain-delete') {
     		// Get confirmation in red colored console log
     		// Source: https://stackoverflow.com/questions/9781218/how-to-change-node-jss-console-font-color
     		console.log('\x1b[31m%s\x1b[0m', '------------------------------------------------------------------------------------');
-    		console.log('\x1b[31m%s\x1b[0m', 'Are you sure you want to delete the collection and the brain? Type \'yes\' to confirm.'.toUpperCase());
+    		console.log('\x1b[31m%s\x1b[0m', 'Are you sure you want to delete the brain? Type \'yes\' to confirm.'.toUpperCase());
     		console.log('\x1b[31m%s\x1b[0m', '------------------------------------------------------------------------------------');
 
     		var standard_input = process.stdin;
@@ -375,17 +375,40 @@ db.connect(url, function(err) {
 			    			}
 								else {
 									console.log('Deleted the brain.')
-					    		dbo.collection(collName).drop(function(err, delOK) {
-						  	    if (err) throw err;
-						  	    if (delOK) console.log('Collection deleted');
-						  	    db.close();
-						  	    process.exit(100);
-						  	  });
 								}
 			    		});
     				} catch(err) {
     					console.error(err);
     					process.exit(-55);
+    				}
+    			}
+    			else {
+    				process.exit(100);
+    			}
+    		})
+    	}
+    	else if(process.argv[2] === 'data-delete') {
+    		// Get confirmation in red colored console log
+    		// Source: https://stackoverflow.com/questions/9781218/how-to-change-node-jss-console-font-color
+    		console.log('\x1b[31m%s\x1b[0m', '------------------------------------------------------------------------------------');
+    		console.log('\x1b[31m%s\x1b[0m', 'Are you sure you want to delete the data collection? Type \'yes\' to confirm.'.toUpperCase());
+    		console.log('\x1b[31m%s\x1b[0m', '------------------------------------------------------------------------------------');
+
+    		var standard_input = process.stdin;
+    		standard_input.setEncoding('utf-8');
+    		standard_input.on('data', (data) => {
+    			data = data.toString().trim();
+    			if(data.toUpperCase() == 'YES') {
+    				try {
+			    		dbo.collection(collName).drop(function(err, delOK) {
+				  	    if (err) throw err;
+				  	    if (delOK) console.log('Collection deleted');
+				  	    db.close();
+				  	    process.exit(110);
+				  	  });
+    				} catch(err) {
+    					console.error(err);
+    					process.exit(-56);
     				}
     			}
     			else {

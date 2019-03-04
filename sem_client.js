@@ -434,6 +434,7 @@ function checkForCommandlineArguments() {
 
   // Should we fake the i2c connection?
   if(process.argv.indexOf('-spoofi2c') !== -1) {
+    console.log('\x1b[31m%s\x1b[0m', 'I2C spoofing activated!');
     shouldSpoofI2C = true;
   }
 }
