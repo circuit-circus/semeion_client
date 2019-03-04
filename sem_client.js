@@ -307,7 +307,7 @@ function sendStateUpdate(msg) {
  * @param  {[type]} message 
  */
 function handleOtherClimax(message) {
-    // io.emit('state', message);
+    noiseSeed = utility.getRandomInt(1, 65000);
     if(!shouldSpoofI2C && !isClimaxing) {
       writeThisToI2C(1, 96, [0]);
     }
@@ -326,6 +326,7 @@ function handleOtherState(message) {
       console.error(err);
     };
     io.emit('state', message);
+    noiseSeed = utility.getRandomInt(1, 65000);
     if(message[1]) {
       handleOtherClimax(message);
     }
