@@ -13,7 +13,7 @@ function i2cRead(dataSize, offset) {
   // console.log('Connecting to Python');
   return new Promise(function(resolve, reject) {
     var spawn = require('child_process').spawn;
-    utility.getAppPath('python').then((res) => {
+    utility.getAppPath('python3').then((res) => {
       var process = spawn(res, [i2cReadPath, dataSize, offset]);
 
       process.stdout.on('data', function (data) {
@@ -45,7 +45,7 @@ function i2cRead(dataSize, offset) {
 function i2cWrite(data, offset, arr) {
   return new Promise(function(resolve, reject) {
     var spawn = require('child_process').spawn;
-    utility.getAppPath('python').then((res) => {
+    utility.getAppPath('python3').then((res) => {
       var process = spawn(res, [i2cWritePath, data, offset, arr]);
 
       process.stdout.on('data', function (msg) {

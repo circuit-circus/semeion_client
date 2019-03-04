@@ -14,7 +14,7 @@ function mapNumber(x, in_min, in_max, out_min, out_max) {
 function getAppPath(appName) {
 	return new Promise((resolve, reject) => {
 		var spawn = require('child_process').spawn;
-		var process = spawn('which', [appName]);
+		var process = spawn('/usr/bin/which', [appName]);
 
 		process.stdout.on('data', function (data) {
 		  process.kill();

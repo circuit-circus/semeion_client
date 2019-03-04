@@ -215,11 +215,11 @@ function spawnMLProcess(msg) {
     if(unoMsg[0] === 120) {
       let newSettings = I2CToSettings(unoMsg);
       // Figure out where node is located, then do something
-      utility.getAppPath('node').then((res) => {
-        let nodePath = res;
+      // utility.getAppPath('node').then((res) => {
+        // let nodePath = res;
 
         var spawn = require('child_process').spawn;
-        var process = spawn(nodePath, [mlPath, 'train', JSON.stringify(newSettings), noiseSeed]);
+        var process = spawn('/home/pi/.nvm/versions/node/v11.10.0/bin/node', [mlPath, 'train', JSON.stringify(newSettings), noiseSeed]);
 
         process.stdout.on('data', function (data) {
 
@@ -253,7 +253,9 @@ function spawnMLProcess(msg) {
         process.on('error', (err) => {
           reject(Error('An error occured with getSettings: ' + err));
         });
-      });
+      // }).catch((err) => {
+        // console.error(err)
+      // });
     }
   })
 }
