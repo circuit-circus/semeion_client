@@ -131,7 +131,9 @@ if(!getSettingsInterval) {
         }
         trainingBrain = false;
       }).catch((err) => {
-        console.error(err);
+        if(err.message !== undefined) {
+          if(!err.message.includes('OSError')) console.error(err);
+        }
         trainingBrain = false;
       });
     }
@@ -145,7 +147,6 @@ function lookupServerIp() {
       if(!configs|| !configs.serverHostname) {
         reject('Error: Cannot find serverHostname in configs');
       }
-
     
       dns.lookup(configs.serverHostname, function(err, result) {
   
@@ -185,7 +186,7 @@ function getSettings() {
         msg.push(utility.getRandomInt(0, 255));
       }
       // Start the ML process
-      console.log('Starting ML!');
+      console.log('Starting ML via spoofed I2C!');
       spawnMLProcess(msg).then((data) => {
         resolve(data);
       }).catch((err) => {
@@ -197,12 +198,14 @@ function getSettings() {
       i2c.i2cRead(8, 98).then(function(msg) {
         // Convert the received buffer to an array
         let unoMsg = JSON.parse(msg);
-        spawnMLProcess(msg).then((data) => {
+        spawnMLProcess(unoMsg).then((data) => {
           resolve(data);
         }).catch((err) => {
           reject(err);
         });
-      })
+      }).catch((err) => {
+        reject(err);
+      });
     }
   });
 }
@@ -346,9 +349,11 @@ function handleOtherState(message) {
 function writeThisToI2C(data, offset, sett) {
   i2c.i2cWrite(data, offset, sett).then(function(msg) {
     // console.log(msg.toString('utf8'));
+    if(i2cWriteRetries > 0) console.log('Successfully connected to i2cWrite after ' + i2cWriteRetries + ' tries.');
+    i2cWriteRetries = 0;
   })
   .catch(function(error) {
-    console.error(error.message);
+    if(!error.message.includes('OSError')) console.error(error.message);
     // Keep track of how many times we tried
     i2cWriteRetries++;
     // Only retry if we haven't exceeded the max
@@ -381,9 +386,13 @@ function settingsToI2C(sett) {
 
 function I2CToSettings(sett) {
   let newSettings = {
-    "baseHue": sett[1] / 255,
-    "baseSat": sett[2] / 255,
-    "time": sett[4] / 255
+    "learnHue": sett[1] / 255,
+    "learnAni1": sett[2] / 255,
+    "learnAni2": sett[3] / 255,
+    "learnAni3": sett[4] / 255,
+    "learnAni4": sett[5] / 255,
+    "learnAni5": sett[6] / 255,
+    "time": sett[7] / 255
   };
   return newSettings;
 }

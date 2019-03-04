@@ -50,7 +50,6 @@ function i2cWrite(data, offset, arr) {
 
       process.stdout.on('data', function (msg) {
         process.kill();
-        console.log('Successfully connected to i2cWrite');
         resolve(msg);
       });
 
