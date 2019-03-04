@@ -2,3 +2,4 @@
 node_modules/
 configs.js
 .AppleDouble
+brain_data/brain.json
