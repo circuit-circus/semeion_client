@@ -1,18 +1,18 @@
 // Circuit Circus fork of the npm package play-sound
 // https://www.npmjs.com/package/play-sound
 var fs = require('fs'),
-		findExec = require('find-exec')
-		spawn = require('child_process').spawn
-		players = [
-			'mplayer',
-			'afplay',
+    findExec = require('find-exec')
+    spawn = require('child_process').spawn
+    players = [
+      'mplayer',
+      'afplay',
       'mpg123',
-			'mpg321',
-			'play',
-			'omxplayer',
-			'aplay',
-			'cmdmp3'
-		];
+      'mpg321',
+      'play',
+      'omxplayer',
+      'aplay',
+      'cmdmp3'
+    ];
 
 function Play(opts){
   opts = opts || {};

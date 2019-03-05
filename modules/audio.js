@@ -74,7 +74,7 @@ function sendCommandToAudio(proc, key) {
 }
 
 module.exports = {
-	isOneShotPlaying,
+  isOneShotPlaying,
   playSound,
   playLoop,
   stopLoop,
