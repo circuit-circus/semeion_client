@@ -21,11 +21,7 @@ let server = require('http').createServer(app);
 var io = require('socket.io')(server);
 
 let checkClimaxInterval;
-<<<<<<< HEAD
 const checkClimaxIntervalTime = 300;
-=======
-const checkClimaxIntervalTime = 500;
->>>>>>> b66d1c71a91b87dd65db20b61f70c5be4b3ed72f
 let isClimaxing = false;
 
 const i2cWriteRetriesMax = 10;
@@ -118,15 +114,9 @@ if(!getSettingsInterval) {
 function lookupServerIp() {
   return new Promise(function(resolve, reject) {
 
-<<<<<<< HEAD
-      if(!configs|| !configs.serverHostname) {
-        reject('Error: Cannot find serverHostname in configs');
-      }
-=======
     if(!configs|| !configs.serverHostname) {
       reject('Error: Cannot find serverHostname in configs');
     }
->>>>>>> b66d1c71a91b87dd65db20b61f70c5be4b3ed72f
     
     dns.lookup(configs.serverHostname, function(err, result) {
   
