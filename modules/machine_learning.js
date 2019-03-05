@@ -322,7 +322,6 @@ db.connect(mongoURL, function(err) {
 		  		if(process.argv[5] !== undefined && process.argv[6] !== undefined) {
 		  			x = parseInt(process.argv[5]);
 		  			y = parseInt(process.argv[6]);
-		  			console.log(x + ' / ' + y);
 		  		}
 		  		else {
 		  			console.error('You need to pass in x and y!');
