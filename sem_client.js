@@ -34,6 +34,7 @@ const getSettingsIntervalTime = 300;
 let mlPath = __dirname + '/modules/machine_learning.js';
 let spoofedSettings = [];
 let noiseSeed = 6705;
+let x = 0, y = 0;
 
 // Express Server Calls
 app.use(express.static(__dirname + '/public'));
@@ -74,6 +75,11 @@ io.on('connection', function(socket){
   console.log('A user connected');
 
   io.emit('connected', configs.semeionId);
+
+  // Work-in-progress
+  socket.on('climax', function(dat) {
+    if(dat) sendClimaxUpdate(dat);
+  })
 });
 
 server.listen(port, function() {
@@ -188,13 +194,12 @@ function spawnMLProcess(msg) {
       let newSettings = I2CToSettings(unoMsg);
       // Figure out where node is located, then do something
       // utility.getAppPath('node').then((res) => {
-        // let nodePath = res;
 
         var spawn = require('child_process').spawn;
-        var process = spawn('/home/pi/.nvm/versions/node/v11.10.0/bin/node', [mlPath, 'train', JSON.stringify(newSettings), noiseSeed]);
+        let nodePath = shouldSpoofI2C ? 'node' : '/home/pi/.nvm/versions/node/v11.10.0/bin/node';
+        var process = spawn(nodePath, [mlPath, 'train', JSON.stringify(newSettings), noiseSeed, x, y]);
 
         process.stdout.on('data', function (data) {
-
           // endString is in the start of the data that terminates the process
           let endString = 'Final: ';
           let datString = data.toString();
@@ -202,6 +207,7 @@ function spawnMLProcess(msg) {
             // clean up after we got what we wanted
             process.kill();
             datString = datString.substring(endString.length);
+            x++; y += 10;
             resolve(datString);
           }
           // This error is common, so no need to log it
@@ -235,6 +241,7 @@ function spawnMLProcess(msg) {
 /**
  * Attemps to read the i2c status, and calls MQTT to send out a potential climax
  */
+let spoofedState = [120, 0, 0, 0, 0, 0, 0, 0];
 function checkClimaxUpdate() {
   if(!shouldSpoofI2C) {
     i2c.i2cRead(8, 99).then(function(msg) {
@@ -262,14 +269,27 @@ function checkClimaxUpdate() {
       }
     });
   }
+  else {
+    spoofedState[0] = 120;
+    spoofedState[1] = Math.random() < 0.01 ? 1 : 0;
+    spoofedState[2] = Math.random() < 0.2 ? 1 : 0;
+    spoofedState[3] = Math.random() < 0.2 ? 1 : 0;
+    spoofedState[4] = Math.random() < 0.2 ? 1 : 0;
+    spoofedState[5] = Math.random() < 0.2 ? 1 : 0;
+    spoofedState[6] += Math.random() < 0.5 ? -1 : Math.random() < 0.5 ? 1 : 5;
+    spoofedState[6] = spoofedState[6] < 0 ? 0 : spoofedState[6] > 255 ? 255 : spoofedState[6];
+    spoofedState[7] += Math.random() < 0.5 ? -1 : Math.random() < 0.5 ? 1 : 5;
+    spoofedState[7] = spoofedState[7] < 0 ? 0 : spoofedState[7] > 255 ? 255 : spoofedState[7];
+    io.emit('state', spoofedState);
+  }
 }
 
 /**
  * Sends out the climax via MQTT
  */
-function sendClimaxUpdate() {
-  var dataToSend = JSON.stringify({clientInfo: mqtt_service.myInfo, clientState: isClimaxing});
-  console.error(dataToSend);
+function sendClimaxUpdate(newState) {
+  var dataToSend = JSON.stringify({clientInfo: mqtt_service.myInfo, clientState: newState});
+  console.log(dataToSend);
   if(mqtt_service.client !== undefined) {
     mqtt_service.client.publish('sem_client/climax', dataToSend);
   }

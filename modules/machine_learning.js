@@ -319,6 +319,15 @@ db.connect(mongoURL, function(err) {
 		  			noiseGen.seed(parseInt(process.argv[4]));
 		  		}
 
+		  		if(process.argv[5] !== undefined && process.argv[6] !== undefined) {
+		  			x = parseInt(process.argv[5]);
+		  			y = parseInt(process.argv[6]);
+		  			console.log(x + ' / ' + y);
+		  		}
+		  		else {
+		  			console.error('You need to pass in x and y!');
+		  		}
+
 		  		writeSettings(newSettings)
 		  		.then((result) => {
 		  			// console.log('Successfully wrote settings. Proceeding to train...');

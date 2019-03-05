@@ -75,6 +75,11 @@ function setup() {
     if(alienNoiseLoaded && backgroundNoiseLoaded){
         readyToPlay = true;
     }
+
+    select('.climax').mousePressed(() => {
+        console.log('clicked')
+        socket.emit('climax', true);
+    })
 }
 
 function setSensorValues() {
