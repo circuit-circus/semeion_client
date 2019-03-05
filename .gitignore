@@ -2,8 +2,5 @@
 node_modules/
 configs.js
 .AppleDouble
-<<<<<<< HEAD
 brain_data/*.json
-=======
 public/sfx/
->>>>>>> b66d1c71a91b87dd65db20b61f70c5be4b3ed72f

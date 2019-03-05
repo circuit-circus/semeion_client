@@ -21,7 +21,7 @@ let server = require('http').createServer(app);
 var io = require('socket.io')(server);
 
 let checkClimaxInterval;
-const checkClimaxIntervalTime = 300;
+const checkClimaxIntervalTime = 287;
 let isClimaxing = false;
 
 const i2cWriteRetriesMax = 10;
@@ -29,7 +29,7 @@ let i2cWriteRetries = 0;
 
 let getSettingsInterval;
 let trainingBrain = false;
-const getSettingsIntervalTime = 300;
+const getSettingsIntervalTime = 333;
 
 let mlPath = __dirname + '/modules/machine_learning.js';
 let spoofedSettings = [];
