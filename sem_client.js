@@ -21,7 +21,11 @@ let server = require('http').createServer(app);
 var io = require('socket.io')(server);
 
 let checkClimaxInterval;
+<<<<<<< HEAD
 const checkClimaxIntervalTime = 300;
+=======
+const checkClimaxIntervalTime = 500;
+>>>>>>> b66d1c71a91b87dd65db20b61f70c5be4b3ed72f
 let isClimaxing = false;
 
 const i2cWriteRetriesMax = 10;
@@ -35,11 +39,6 @@ let mlPath = __dirname + '/modules/machine_learning.js';
 let spoofedSettings = [];
 let noiseSeed = 6705;
 
-// Vars for trying to get the ip from hostname again and again
-let tryAgainTimer = 30000;
-let tryAgainCounter = 0;
-let tryAgainMaxTries = 10;
-
 // Express Server Calls
 app.use(express.static(__dirname + '/public'));
 app.use(express.static(__dirname + '/node_modules/p5/lib'));
@@ -48,57 +47,32 @@ app.get('/', function(req, res) {
   res.sendFile(__dirname + '/index.html');
 });
 
-initializeProgram();
+// Find server ip
+lookupServerIp().then(function(serverIp) {
 
-function initializeProgram() {
+  console.log('Found server ip! It is ' + serverIp);
+  // Then initialize mqtt client
+  mqtt_service.initializeMqtt(serverIp).then(function(client) {
+    mqtt_service.client = client;
 
-  console.log('Trying to initialize and get IP');
-  // Find server ip
-  lookupServerIp().then(function(serverIp) {
+    console.log('Created mqtt client!');
 
-    console.log('Found server ip! It is ' + serverIp);
-    // Then initialize mqtt client
-    mqtt_service.initializeMqtt(serverIp).then(function(client) {
-      mqtt_service.client = client;
-
-      console.log('Created mqtt client!');
-
-      mqtt_service.client.on('message', (topic, message) => {
-        // console.log('received message %s %s', topic, message);
-        switch(topic) {
-          case 'sem_client/other_climax':
-            return handleOtherClimax(message);
-          case 'sem_client/other_state':
-            return handleOtherState(message);
-        }
-        console.log('No handler for topic %s', topic);
-      });
-    })
-    .catch(function(err) {
-      console.log('Could not initialize MQTT client. Error: ');
-      console.log(err);
+    mqtt_service.client.on('message', (topic, message) => {
+      // console.log('received message %s %s', topic, message);
+      switch(topic) {
+        case 'sem_client/other_climax':
+          return handleOtherClimax(message);
+        case 'sem_client/other_state':
+          return handleOtherState(message);
+      }
+      console.log('No handler for topic %s', topic);
     });
   })
   .catch(function(err) {
-    console.log('Could not find IP. Error: ');
     console.log(err);
-
-    tryAgainCounter++;
-
-    if(tryAgainCounter < tryAgainMaxTries) {
-
-      console.log('Trying again in %s milliseconds, try %s out of %s...', tryAgainTimer, tryAgainCounter, tryAgainMaxTries);
-
-      // Let's try again!
-      setTimeout(function() {
-        initializeProgram();
-      }, tryAgainTimer);
-
-    } else {
-      throw new Error('Maxed out on tries to get IP from hostname');
-    }
   });
-}
+
+})
 
 io.on('connection', function(socket){
   console.log('A user connected');
@@ -144,21 +118,26 @@ if(!getSettingsInterval) {
 function lookupServerIp() {
   return new Promise(function(resolve, reject) {
 
+<<<<<<< HEAD
       if(!configs|| !configs.serverHostname) {
         reject('Error: Cannot find serverHostname in configs');
       }
+=======
+    if(!configs|| !configs.serverHostname) {
+      reject('Error: Cannot find serverHostname in configs');
+    }
+>>>>>>> b66d1c71a91b87dd65db20b61f70c5be4b3ed72f
     
-      dns.lookup(configs.serverHostname, function(err, result) {
+    dns.lookup(configs.serverHostname, function(err, result) {
   
-        if(err) {
-          reject(err);
-        }
+      if(err) {
+        reject('Error: ' + err);
+      }
 
-        if(result && result != '') {
-          resolve(result);
-        }
-      });
-    
+      if(result && result != '') {
+        resolve(result);
+      }
+    });
     
   });
 }
