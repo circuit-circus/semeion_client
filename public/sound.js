@@ -76,10 +76,10 @@ function setup() {
         readyToPlay = true;
     }
 
-    select('.climax').mousePressed(() => {
+    /*select('.climax').mousePressed(() => {
         console.log('clicked')
         socket.emit('climax', true);
-    })
+    })*/
 }
 
 function setSensorValues() {
