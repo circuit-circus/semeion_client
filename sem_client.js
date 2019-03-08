@@ -29,7 +29,7 @@ let i2cWriteRetries = 0;
 
 let getSettingsInterval;
 let trainingBrain = false;
-const getSettingsIntervalTime = 333;
+const getSettingsIntervalTime = 60000;
 
 let mlPath = __dirname + '/modules/machine_learning.js';
 let spoofedSettings = [];
@@ -196,7 +196,7 @@ function spawnMLProcess(msg) {
       // utility.getAppPath('node').then((res) => {
 
         var spawn = require('child_process').spawn;
-        let nodePath = shouldSpoofI2C ? 'node' : '/home/pi/.nvm/versions/node/v11.10.0/bin/node';
+        let nodePath = shouldSpoofI2C ? 'node' : '/home/pi/.nvm/versions/node/v11.9.0/bin/node';
         var process = spawn(nodePath, [mlPath, 'train', JSON.stringify(newSettings), noiseSeed, x, y]);
 
         process.stdout.on('data', function (data) {
@@ -256,10 +256,23 @@ function checkClimaxUpdate() {
         // Set a new seed, because we had a climax
         noiseSeed = utility.getRandomInt(1, 65000);
 
+        let msg = [];
+        for(let i = 0; i < unoMsg.length; i++) {
+          if(unoMsg[i] > 1) {
+            msg[i] = unoMsg[i];
+          }
+          else {
+            msg[i] = unoMsg[i] === 1 ? true : false;
+          }
+        }
+
+        io.emit('state', msg);
+        if(isClimaxing) sendStateUpdate(msg);
+
         // Transmit state and data to the browser
-        io.emit('state', unoMsg);
+        // io.emit('state', unoMsg);
         // Transmit the climax to everyone
-        if(isClimaxing) sendClimaxUpdate(isClimaxing);
+        // if(isClimaxing) sendClimaxUpdate(isClimaxing);
       }
     })
     .catch(function(error) {
@@ -325,6 +338,7 @@ function handleOtherState(message) {
     try {
       // We get a buffer, so we need to convert it to a string before we parse it
       message = JSON.parse(message.toString('utf8'));
+      // console.log(message);
     } catch(err) {
       console.error(err);
     };
