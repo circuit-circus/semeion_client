@@ -1,12 +1,14 @@
 'use strict';
 const utility = require('./utility');
 
-
+// Where are our Python scripts located?
 let i2cReadPath = __dirname + '/../python/read_i2c.py';
 let i2cWritePath = __dirname + '/../python/write_i2c.py';
 
 /**
  * Reads data from the Arduino via I2C
+ * @param {Number} dataSize The size of the data we expect to get from the Arduino (learn more in the Python file's comments).
+ * @param  {Number} offset The offset to read from (learn more in the Python file's comments)
  * @return {Promise} A Promise object, which resolves if data is received, but rejects if anything other happens.
  */
 function i2cRead(dataSize, offset) {
@@ -39,7 +41,9 @@ function i2cRead(dataSize, offset) {
 
 /**
  * Writes some Array to the Arduino via I2C
- * @param  {Number} The data to be written. Can be up to 32 bytes, but preferably less.
+ * @param  {Number} data The climax state to be written (learn more in the Python file's comments)
+ * @param  {Number} offset The offset to write to (learn more in the Python file's comments)
+ * @param  {Number} arr The new settings to be written. Can be up to 32 bytes, but preferably less. (learn more in the Python file's comments)
  * @return {Promise} A Promise object, which resolves when we receive data and rejects if we receive an error
  */
 function i2cWrite(data, offset, arr) {
