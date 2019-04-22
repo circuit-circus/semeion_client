@@ -21,7 +21,7 @@ let server = require('http').createServer(app);
 var io = require('socket.io')(server);
 
 let checkClimaxInterval;
-const checkClimaxIntervalTime = 300;
+const checkClimaxIntervalTime = 287;
 let isClimaxing = false;
 
 const i2cWriteRetriesMax = 10;
@@ -29,7 +29,12 @@ let i2cWriteRetries = 0;
 
 let getSettingsInterval;
 let trainingBrain = false;
-const getSettingsIntervalTime = 300;
+const getSettingsIntervalTime = 60000;
+
+// Vars for trying to get the ip from hostname again and again
+let tryAgainTimer = 30000;
+let tryAgainCounter = 0;
+let tryAgainMaxTries = 10;
 
 let mlPath = __dirname + '/modules/machine_learning.js';
 let spoofedSettings = [];
@@ -44,32 +49,57 @@ app.get('/', function(req, res) {
   res.sendFile(__dirname + '/index.html');
 });
 
-// Find server ip
-lookupServerIp().then(function(serverIp) {
+initializeProgram();
 
-  console.log('Found server ip! It is ' + serverIp);
-  // Then initialize mqtt client
-  mqtt_service.initializeMqtt(serverIp).then(function(client) {
-    mqtt_service.client = client;
+function initializeProgram() {
 
-    console.log('Created mqtt client!');
+  console.log('Trying to initialize and get IP');
+  // Find server ip
+  lookupServerIp().then(function(serverIp) {
 
-    mqtt_service.client.on('message', (topic, message) => {
-      // console.log('received message %s %s', topic, message);
-      switch(topic) {
-        case 'sem_client/other_climax':
-          return handleOtherClimax(message);
-        case 'sem_client/other_state':
-          return handleOtherState(message);
-      }
-      console.log('No handler for topic %s', topic);
+    console.log('Found server ip! It is ' + serverIp);
+    // Then initialize mqtt client
+    mqtt_service.initializeMqtt(serverIp).then(function(client) {
+      mqtt_service.client = client;
+
+      console.log('Created mqtt client!');
+
+      mqtt_service.client.on('message', (topic, message) => {
+        // console.log('received message %s %s', topic, message);
+        switch(topic) {
+          case 'sem_client/other_climax':
+            return handleOtherClimax(message);
+          case 'sem_client/other_state':
+            return handleOtherState(message);
+        }
+        console.log('No handler for topic %s', topic);
+      });
+    })
+    .catch(function(err) {
+      console.log('Could not initialize MQTT client. Error: ');
+      console.log(err);
     });
   })
   .catch(function(err) {
+    console.log('Could not find IP. Error: ');
     console.log(err);
-  });
 
-})
+    tryAgainCounter++;
+
+    if(tryAgainCounter < tryAgainMaxTries) {
+
+      console.log('Trying again in %s milliseconds, try %s out of %s...', tryAgainTimer, tryAgainCounter, tryAgainMaxTries);
+
+      // Let's try again!
+      setTimeout(function() {
+        initializeProgram();
+      }, tryAgainTimer);
+
+    } else {
+      throw new Error('Maxed out on tries to get IP from hostname');
+    }
+  });
+}
 
 io.on('connection', function(socket){
   console.log('A user connected');
@@ -90,12 +120,19 @@ if(!checkClimaxInterval) {
   checkClimaxInterval = setInterval(checkClimaxUpdate, checkClimaxIntervalTime);
 }
 
+// If we haven't started a repeating call to brain training, then do so now
 if(!getSettingsInterval) {
+  // Start a repeating call to brain training
   getSettingsInterval = setInterval(() => {
+    // To prevent multiple concurrent brain trainings
     if(!trainingBrain) {
       trainingBrain = true;
+
+      // Attempt to get the current settings on from the Arduino
       getSettings().then((dat) => {
+        // Convert 
         let i2cSettings = settingsToI2C(JSON.parse(dat.toString()));
+
         console.log(new Date().toTimeString() + ": Our new settings are: \x1b[35m" + i2cSettings + '\x1b[0m');
         // If we're for real, write the new settings to i2c
         if(!shouldSpoofI2C) {
@@ -119,65 +156,70 @@ if(!getSettingsInterval) {
 // Get the IP of the server from it's hostname (defined in configs)
 function lookupServerIp() {
   return new Promise(function(resolve, reject) {
-
-    if(!configs|| !configs.serverHostname) {
-      reject('Error: Cannot find serverHostname in configs');
-    }
-    
-    dns.lookup(configs.serverHostname, function(err, result) {
-  
-      if(err) {
-        reject('Error: ' + err);
+      if(!configs|| !configs.serverHostname) {
+        reject('Error: Cannot find serverHostname in configs');
       }
-
-      if(result && result != '') {
-        resolve(result);
-      }
-    });
-    
+      dns.lookup(configs.serverHostname, function(err, result) {
+        if(err) {
+          reject(err);
+        }
+        if(result && result != '') {
+          resolve(result);
+        }
+      });
   });
 }
 
 /**
- * Attemps to read the i2c status, and calls MQTT to send out a potential climax
+ * Attemps to read the i2c settings, and starts machine learning in a new subprocess
+ * @return Promise A Promise object, which resolves if we successfully run the neural network,
+ *                 but rejects if an error happens on either the ML side or the I2C side.
  */
 function getSettings() {
   return new Promise((resolve, reject) => {
+    // First element is 120, so we can confirm that the I2C worked as intended
     let msg = [120];
+
     // Are we on a non-i2c ready setup, but we want to test ML?
     if(shouldSpoofI2C) {
-      // Did we just start our simulation?
+      // Did we just start our spoofing?
       if(spoofedSettings.length < 1) {
         msg.push(utility.getRandomInt(0, 255));
         msg.push(utility.getRandomInt(0, 255));
         msg.push(0);
         msg.push(utility.getRandomInt(0, 255));
       }
-      // or do we continute from earlier data?
+      // or did we continue from earlier data?
       else {
         msg.push(spoofedSettings[1]);
         msg.push(spoofedSettings[2]);
         msg.push(0);
         msg.push(utility.getRandomInt(0, 255));
       }
-      // Start the ML process
+
+      // Start the Machine Learning subprocess
       console.log('Starting ML via spoofed I2C!');
+
       spawnMLProcess(msg).then((data) => {
         resolve(data);
       }).catch((err) => {
         reject(err);
       });
     }
-    // If not, then let's just read settings from i2c
+    // If not spoofing, then we read settings from i2c
     else {
+      // We expect 8 bytes of data, and we read from the offset 98 here
       i2c.i2cRead(8, 98).then(function(msg) {
-        // Convert the received buffer to an array
+        // Convert the received buffer to an array we can work with
         let unoMsg = JSON.parse(msg);
+
+        // Start the Machine Learning subprocess
         spawnMLProcess(unoMsg).then((data) => {
           resolve(data);
         }).catch((err) => {
           reject(err);
         });
+
       }).catch((err) => {
         reject(err);
       });
@@ -185,55 +227,55 @@ function getSettings() {
   });
 }
 
+/**
+ * Spawns a neural network as a subprocess to prevent memory leaks that are normally caused by Brain.js' trainAsync function
+ * @param  {Array} msg An array that contains our current settings as delivered over I2C
+ * @return {Promise} A Promise which resolves if the machine learning goes well, but rejects if not.
+ */
 function spawnMLProcess(msg) {
   return new Promise((resolve, reject) => {
     let unoMsg = msg;
 
-    // The first index is the climax state
+    // The first index is a safety measure to confirm I2C connections
     if(unoMsg[0] === 120) {
+      // Convert the settings from the I2C settings format to the ML settings format
       let newSettings = I2CToSettings(unoMsg);
-      // Figure out where node is located, then do something
-      // utility.getAppPath('node').then((res) => {
+      var spawn = require('child_process').spawn;
+      let nodePath = shouldSpoofI2C ? 'node' : '/home/pi/.nvm/versions/node/v11.9.0/bin/node';
+      var process = spawn(nodePath, [mlPath, 'train', JSON.stringify(newSettings), noiseSeed, x, y]);
 
-        var spawn = require('child_process').spawn;
-        let nodePath = shouldSpoofI2C ? 'node' : '/home/pi/.nvm/versions/node/v11.10.0/bin/node';
-        var process = spawn(nodePath, [mlPath, 'train', JSON.stringify(newSettings), noiseSeed, x, y]);
+      process.stdout.on('data', function (data) {
+        // endString is in the start of the data that terminates the process
+        let endString = 'Final: ';
+        let datString = data.toString();
+        if(datString.includes(endString)) {
+          // clean up after we got what we wanted
+          process.kill();
+          datString = datString.substring(endString.length);
+          x++; y += 10;
+          resolve(datString);
+        }
+        // This error is common, so no need to log it
+        else if(!datString.includes("Cannot find module '../build/Release/bson'")) {
+          // console.log('Got some data: \x1b[36m' + data + '\x1b[0m');
+        }
+      });
 
-        process.stdout.on('data', function (data) {
-          // endString is in the start of the data that terminates the process
-          let endString = 'Final: ';
-          let datString = data.toString();
-          if(datString.includes(endString)) {
-            // clean up after we got what we wanted
-            process.kill();
-            datString = datString.substring(endString.length);
-            x++; y += 10;
-            resolve(datString);
-          }
-          // This error is common, so no need to log it
-          else if(!datString.includes("Cannot find module '../build/Release/bson'")) {
-            // console.log('Got some data: \x1b[36m' + data + '\x1b[0m');
-          }
-        });
+      process.stderr.on('data', (err) => {
+        // This error is common, so no need to log it
+        if(!err.includes('DeprecationWarning') && !err.includes('Failed to load c++ bson extension')) {
+          process.kill();
+          reject('getSettings gave off an error: ' + err);
+        }
+      });
 
-        process.stderr.on('data', (err) => {
-          // This error is common, so no need to log it
-          if(!err.includes('DeprecationWarning') && !err.includes('Failed to load c++ bson extension')) {
-            process.kill();
-            reject('getSettings gave off an error: ' + err);
-          }
-        });
+      process.on('close', (code) => {
+        resolve('getSettings was closed with this code: ' + code);
+      });
 
-        process.on('close', (code) => {
-          resolve('getSettings was closed with this code: ' + code);
-        });
-
-        process.on('error', (err) => {
-          reject(Error('An error occured with getSettings: ' + err));
-        });
-      // }).catch((err) => {
-        // console.error(err)
-      // });
+      process.on('error', (err) => {
+        reject(Error('An error occured with getSettings: ' + err));
+      });
     }
   })
 }
@@ -241,7 +283,6 @@ function spawnMLProcess(msg) {
 /**
  * Attemps to read the i2c status, and calls MQTT to send out a potential climax
  */
-let spoofedState = [120, 0, 0, 0, 0, 0, 0, 0];
 function checkClimaxUpdate() {
   if(!shouldSpoofI2C) {
     i2c.i2cRead(8, 99).then(function(msg) {
@@ -256,10 +297,23 @@ function checkClimaxUpdate() {
         // Set a new seed, because we had a climax
         noiseSeed = utility.getRandomInt(1, 65000);
 
+        let msg = [];
+        for(let i = 0; i < unoMsg.length; i++) {
+          if(unoMsg[i] > 1) {
+            msg[i] = unoMsg[i];
+          }
+          else {
+            msg[i] = unoMsg[i] === 1 ? true : false;
+          }
+        }
+
+        io.emit('state', msg);
+        if(isClimaxing) sendStateUpdate(msg);
+
         // Transmit state and data to the browser
-        io.emit('state', unoMsg);
+        // io.emit('state', unoMsg);
         // Transmit the climax to everyone
-        if(isClimaxing) sendClimaxUpdate(isClimaxing);
+        // if(isClimaxing) sendClimaxUpdate(isClimaxing);
       }
     })
     .catch(function(error) {
@@ -270,6 +324,7 @@ function checkClimaxUpdate() {
     });
   }
   else {
+    let spoofedState = [120, 0, 0, 0, 0, 0, 0, 0];
     spoofedState[0] = 120;
     spoofedState[1] = Math.random() < 0.01 ? 1 : 0;
     spoofedState[2] = Math.random() < 0.2 ? 1 : 0;
@@ -325,6 +380,7 @@ function handleOtherState(message) {
     try {
       // We get a buffer, so we need to convert it to a string before we parse it
       message = JSON.parse(message.toString('utf8'));
+      // console.log(message);
     } catch(err) {
       console.error(err);
     };
@@ -335,6 +391,13 @@ function handleOtherState(message) {
     }
 }
 
+/**
+ * A wrapper for the i2cwrite function in the i2c module.
+ * It includes attempting to write to I2C a couple of times before giving up
+ * @param  {Number} data   The climax state to write
+ * @param  {Number} offset The offset to write to
+ * @param  {Array} sett   The settings to write
+ */
 function writeThisToI2C(data, offset, sett) {
   i2c.i2cWrite(data, offset, sett).then(function(msg) {
     // console.log(msg.toString('utf8'));
@@ -357,15 +420,27 @@ function writeThisToI2C(data, offset, sett) {
   });
 }
 
+/**
+ * Converts a set of ML settings to the format required by I2C. 
+ * The main difference is that ML is numbers between 0 and 1, where ML requires 8-byte values, i.e. between 0 and 255
+ * @param {Array} sett The settings that we want to convert
+ * @return {Array} The converted I2C-ready settings
+ */
 function settingsToI2C(sett) {
+  // First make a clone of the settings we are given
   let theSettings = JSON.parse(JSON.stringify(sett));
+
   // A faulty connection would show 255 on the Arduino
   // so we're sending 120 as a way to check if the connection is solid
   let settingsArray = [120];
+  // Go through all the key-value pairs of the settings, and convert them
   for(let s in theSettings) {
     if(theSettings.hasOwnProperty(s)) {
+      // This comes from MongoDB, but we don't need it in our I2C settings
       if(s !== '_id') {
+        // The actual conversion happens here
         theSettings[s] = Math.floor(Math.max(Math.min(theSettings[s], 1), 0) * 255);
+        // Add it to the settings
         settingsArray.push(theSettings[s]);
       }
     }
@@ -373,6 +448,12 @@ function settingsToI2C(sett) {
   return settingsArray;
 }
 
+/**
+ * Converts a set of I2C settings to the format required by machine learning. 
+ * The main difference is that I2C is in 8-byte values, i.e. between 0 and 255, where ML requires numbers between 0 and 1
+ * @param {Array} sett The settings that we want to convert
+ * @return {Array} The converted ML-ready settings
+ */
 function I2CToSettings(sett) {
   let newSettings = {
     "learnHue": sett[1] / 255,
@@ -443,6 +524,7 @@ function checkForCommandlineArguments() {
 
   // Should we fake the i2c connection?
   if(process.argv.indexOf('-spoofi2c') !== -1) {
+    // First part is some fancy coloring for console output
     console.log('\x1b[31m%s\x1b[0m', 'I2C spoofing activated!');
     shouldSpoofI2C = true;
   }
